@@ -12,6 +12,8 @@
   .section h2 .btn{margin-left:auto}
   .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;background:#f0e6fb;color:#6a3fa0}
   .tag.off{background:#eee;color:#888}
+  .tag.front{background:#e3effc;color:#185fa5}
+  .tag.restaurant{background:#fdf0e1;color:#a55a00}
   tr.inactive td{color:#aaa}
   .slotGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
   .slotBox{border:1px solid var(--line);border-radius:8px;padding:12px}
@@ -31,7 +33,7 @@
 <section class="section">
   <h2><i class="ti ti-users"></i>ユーザー管理<button class="btn primary" id="addUser"><i class="ti ti-user-plus"></i>ユーザー追加</button></h2>
   <div class="tableWrap"><table class="grid">
-    <thead><tr><th>ログインID</th><th>表示名</th><th>権限</th><th>状態</th><th></th></tr></thead>
+    <thead><tr><th>ログインID</th><th>表示名</th><th>ロール</th><th>状態</th><th></th></tr></thead>
     <tbody id="userBody"><tr><td colspan="5" class="empty">読み込み中…</td></tr></tbody>
   </table></div>
 </section>
@@ -48,6 +50,7 @@
 <script>
 (function () {
   const { esc, api, toast, modal } = AMT;
+  const ROLES = { admin: '管理者', front: 'フロント', restaurant: 'レストラン' };
   let users = [];
   let meId = null;
 
@@ -58,7 +61,7 @@
       <tr class="${u.active ? '' : 'inactive'}">
         <td>${esc(u.username)}</td>
         <td>${esc(u.display_name)}${u.id === meId ? ' <span class="muted">(自分)</span>' : ''}</td>
-        <td>${u.is_admin ? '<span class="tag">管理者</span>' : '一般'}</td>
+        <td><span class="tag ${u.role}">${ROLES[u.role] || esc(u.role)}</span></td>
         <td>${u.active ? '有効' : '<span class="tag off">無効</span>'}</td>
         <td style="text-align:right"><button class="btn" data-edit="${u.id}"><i class="ti ti-pencil"></i>編集</button></td>
       </tr>`).join('');
@@ -74,14 +77,17 @@
         <label>表示名<input type="text" name="display_name" required maxlength="64" value="${esc(u ? u.display_name : '')}"></label>
         <label>${isNew ? 'パスワード(8文字以上)' : '新しいパスワード(変更する場合のみ・8文字以上)'}
           <input type="password" name="password" minlength="8" ${isNew ? 'required' : ''} autocomplete="new-password"></label>
-        <label class="check"><input type="checkbox" name="is_admin" ${u && u.is_admin ? 'checked' : ''} ${self ? 'disabled' : ''}>管理者権限</label>
+        <label>ロール<select name="role" ${self ? 'disabled' : ''}>
+          ${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${(u ? u.role : 'front') === k ? ' selected' : ''}>${v}</option>`).join('')}
+        </select></label>
+        <p class="muted" style="margin:-6px 0 0;font-size:12px">管理者のみ管理者ページを利用できます。フロント・レストランは管理表とチャットを利用できます。</p>
         ${isNew ? '' : `<label class="check"><input type="checkbox" name="active" ${u.active ? 'checked' : ''} ${self ? 'disabled' : ''}>有効(外すとログインできなくなります)</label>`}
       </form>`,
       buttons: [{ label: 'キャンセル' }, {
         label: isNew ? '追加する' : '保存する', primary: true, onClick: async () => {
           const f = m.querySelector('form');
           if (!f.reportValidity()) return false;
-          const body = { display_name: f.display_name.value, is_admin: f.is_admin.checked };
+          const body = { display_name: f.display_name.value, role: f.role.value };
           if (isNew) {
             body.username = f.username.value.trim();
             body.password = f.password.value;
@@ -89,7 +95,7 @@
           } else {
             if (f.password.value) body.password = f.password.value;
             if (!self) body.active = f.active.checked;
-            else delete body.is_admin;
+            else delete body.role;
             await api(`/api/users/${u.id}`, { method: 'PUT', body });
           }
           toast(isNew ? 'ユーザーを追加しました' : '保存しました');

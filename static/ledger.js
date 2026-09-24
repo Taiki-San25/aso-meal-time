@@ -438,5 +438,20 @@
   }, REFRESH_MS);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && !AMT.isModalOpen()) loadRows().catch(() => {}); });
 
-  loadSlots().then(loadRows).catch(() => {});
+  // チャットの予約カードから来た場合(?hl=予約ID)は該当行を強調
+  async function highlight(id) {
+    if (!id) return;
+    let row = tbody.querySelector(`tr[data-id="${id}"]`);
+    if (!row && !state.showDeleted) {  // 削除済みなら削除済みも表示して探す
+      $('ldShowDeleted').checked = state.showDeleted = true;
+      await loadRows();
+      row = tbody.querySelector(`tr[data-id="${id}"]`);
+    }
+    if (!row) return toast('予約が見つかりません', true);
+    row.scrollIntoView({ block: 'center' });
+    row.classList.add('flash');
+    setTimeout(() => row.classList.remove('flash'), 2600);
+  }
+
+  loadSlots().then(loadRows).then(() => highlight(params.get('hl'))).catch(() => {});
 })();

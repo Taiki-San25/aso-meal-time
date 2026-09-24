@@ -5,6 +5,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -14,7 +15,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from db import MEALS, Reservation, ReservationHistory, SessionLocal, TimeSlot, User, init_db, now_jst
+from db import (MEALS, ROLES, ChatMessage, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
+                User, init_db, now_jst)
 from security import hash_password, verify_password
 
 BASE = Path(__file__).parent
@@ -36,7 +38,8 @@ def bootstrap_admin() -> None:
                 return
             username, password = "admin", "admin"  # ローカル開発用
             print("[info] ローカル開発用の管理者 admin / admin を作成しました")
-        s.add(User(username=username, display_name="管理者", password_hash=hash_password(password), is_admin=True))
+        s.add(User(username=username, display_name="管理者", password_hash=hash_password(password),
+                   role="admin", is_admin=True))
         s.commit()
 
 
@@ -84,7 +87,7 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def admin_user(user: User = Depends(current_user)) -> User:
-    if not user.is_admin:
+    if user.role != "admin":
         raise HTTPException(403, "管理者のみ操作できます")
     return user
 
@@ -113,7 +116,8 @@ def logout(request: Request):
 
 @app.get("/api/me")
 def me(user: User = Depends(current_user)):
-    return {"id": user.id, "name": user.display_name, "username": user.username, "is_admin": user.is_admin}
+    return {"id": user.id, "name": user.display_name, "username": user.username,
+            "role": user.role, "role_label": ROLES.get(user.role, ""), "is_admin": user.role == "admin"}
 
 
 class PasswordIn(BaseModel):
@@ -391,20 +395,27 @@ def reservation_history(meal: str, rid: int, _: User = Depends(current_user), db
 # ---------- ユーザー管理 ----------
 def user_dict(u: User) -> dict:
     return {"id": u.id, "username": u.username, "display_name": u.display_name,
-            "is_admin": u.is_admin, "active": u.active}
+            "role": u.role, "active": u.active}
+
+
+Role = Literal["admin", "front", "restaurant"]
+
+
+def set_role(u: User, role: str) -> None:
+    u.role, u.is_admin = role, role == "admin"
 
 
 class UserCreateIn(BaseModel):
     username: str = Field(pattern=r"^[A-Za-z0-9_.-]{2,64}$")
     display_name: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=8, max_length=128)
-    is_admin: bool = False
+    role: Role = "front"
 
 
 class UserUpdateIn(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
     password: str | None = Field(default=None, min_length=8, max_length=128)
-    is_admin: bool | None = None
+    role: Role | None = None
     active: bool | None = None
 
 
@@ -418,7 +429,8 @@ def create_user(body: UserCreateIn, _: User = Depends(admin_user), db: Session =
     if db.scalar(select(User).where(User.username == body.username)):
         raise HTTPException(400, "そのログインIDは既に使われています")
     u = User(username=body.username, display_name=body.display_name.strip(),
-             password_hash=hash_password(body.password), is_admin=body.is_admin)
+             password_hash=hash_password(body.password))
+    set_role(u, body.role)
     db.add(u)
     db.commit()
     return user_dict(u)
@@ -429,22 +441,118 @@ def update_user(uid: int, body: UserUpdateIn, me_: User = Depends(admin_user), d
     u = db.get(User, uid)
     if not u:
         raise HTTPException(404, "見つかりません")
-    if u.id == me_.id and (body.is_admin is False or body.active is False):
+    if u.id == me_.id and ((body.role and body.role != "admin") or body.active is False):
         raise HTTPException(400, "自分自身の管理者権限の解除・無効化はできません")
     if body.display_name is not None:
         u.display_name = body.display_name.strip()
     if body.password is not None:
         u.password_hash = hash_password(body.password)
-    if body.is_admin is not None:
-        u.is_admin = body.is_admin
+    if body.role is not None:
+        set_role(u, body.role)
     if body.active is not None:
         u.active = body.active
     db.commit()
     return user_dict(u)
 
 
+# ---------- チャット ----------
+CHAT_LIMIT = 200
+
+
+class ChatIn(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    body: str = Field(default="", max_length=2000)
+    reservation_id: int | None = None
+
+
+class ReadIn(BaseModel):
+    last_id: int
+
+
+def chat_dict(m: ChatMessage, users: dict[int, User], res: dict[int, Reservation]) -> dict:
+    u = users.get(m.user_id)
+    r = res.get(m.reservation_id)
+    retracted = m.retracted_at is not None
+    return {
+        "id": m.id, "user_id": m.user_id, "name": u.display_name if u else "",
+        "role": m.role, "role_label": ROLES.get(m.role, ""),
+        "body": "" if retracted else m.body, "retracted": retracted,
+        "created_at": iso(m.created_at),
+        "reservation": None if retracted or not r else {
+            "id": r.id, "meal": r.meal, "date": r.date.isoformat(), "room": r.room,
+            "guest_name": r.guest_name, "time_slot": r.time_slot, "deleted": r.deleted_at is not None},
+    }
+
+
+def unread_count(db: Session, user: User) -> int:
+    last = db.scalar(select(ChatRead.last_read_id).where(ChatRead.user_id == user.id)) or 0
+    return db.scalar(select(func.count()).select_from(ChatMessage).where(
+        ChatMessage.id > last, ChatMessage.user_id != user.id, ChatMessage.retracted_at.is_(None))) or 0
+
+
+@app.get("/api/chat/messages")
+def chat_messages(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    msgs = list(db.scalars(select(ChatMessage).order_by(ChatMessage.id.desc()).limit(CHAT_LIMIT)))[::-1]
+    users = {u.id: u for u in db.scalars(select(User))}
+    rids = {m.reservation_id for m in msgs if m.reservation_id}
+    res = {r.id: r for r in db.scalars(select(Reservation).where(Reservation.id.in_(rids)))} if rids else {}
+    reads = [{"user_id": uid, "name": users[uid].display_name, "role_label": ROLES.get(users[uid].role, ""),
+              "last_read_id": last}
+             for uid, last in db.execute(select(ChatRead.user_id, ChatRead.last_read_id))
+             if uid in users and users[uid].active]
+    return {"me": user.id, "messages": [chat_dict(m, users, res) for m in msgs], "reads": reads}
+
+
+@app.post("/api/chat/messages")
+def post_chat(body: ChatIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if not body.body and not body.reservation_id:
+        raise HTTPException(400, "メッセージを入力してください")
+    r = db.get(Reservation, body.reservation_id) if body.reservation_id else None
+    if body.reservation_id and not r:
+        raise HTTPException(400, "添付した予約が見つかりません")
+    m = ChatMessage(user_id=user.id, role=user.role, body=body.body, reservation_id=body.reservation_id)
+    db.add(m)
+    db.flush()
+    mark_read(db, user, m.id)
+    db.commit()
+    return {"id": m.id}
+
+
+@app.post("/api/chat/messages/{mid}/retract")
+def retract_chat(mid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    m = db.get(ChatMessage, mid)
+    if not m or m.user_id != user.id:
+        raise HTTPException(404, "取り消せるメッセージが見つかりません")
+    if m.retracted_at is None:
+        m.retracted_at = now_jst()
+        db.commit()
+    return {"ok": True}
+
+
+def mark_read(db: Session, user: User, last_id: int) -> None:
+    cr = db.get(ChatRead, user.id)
+    if not cr:
+        db.add(ChatRead(user_id=user.id, last_read_id=last_id))
+    elif last_id > cr.last_read_id:
+        cr.last_read_id = last_id
+
+
+@app.post("/api/chat/read")
+def chat_read(body: ReadIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    latest = db.scalar(select(func.max(ChatMessage.id))) or 0
+    mark_read(db, user, min(body.last_id, latest))
+    db.commit()
+    return {"unread": unread_count(db, user)}
+
+
+@app.get("/api/chat/unread")
+def chat_unread(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return {"unread": unread_count(db, user)}
+
+
 # ---------- ページ ----------
-PAGES = {"dinner", "breakfast", "admin"}
+PAGES = {"dinner", "breakfast", "chat", "admin"}
 
 
 @app.get("/healthz")
@@ -471,6 +579,6 @@ def page(page: str, request: Request, db: Session = Depends(get_db)):
     user = session_user(request, db)
     if not user:
         return RedirectResponse("/login")
-    if page == "admin" and not user.is_admin:
+    if page == "admin" and user.role != "admin":
         return RedirectResponse("/dinner")
     return FileResponse(BASE / "pages" / f"{page}.html")

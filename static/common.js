@@ -88,7 +88,8 @@ window.AMT = (function () {
     ],
     mainMenu: [
       { label: '夕食時間管理表', icon: 'ti-moon', href: '/dinner' },
-      { label: '朝食時間管理表', icon: 'ti-sun', href: '/breakfast' }
+      { label: '朝食時間管理表', icon: 'ti-sun', href: '/breakfast' },
+      { label: 'チャット', icon: 'ti-messages', href: '/chat', badgeKey: 'chat' }
     ],
     adminMenu: {
       heading: '管理者メニュー',
@@ -108,7 +109,7 @@ window.AMT = (function () {
     const active = path === it.href;
     return `<a class="navRow${admin ? ' adminPage' : ''}${active ? ' navRowActive' : ''}" href="${it.href}">
       <i class="ti ${it.icon}"></i><span class="lbl">${esc(it.label)}</span>
-      ${it.badge ? `<span class="badge">${it.badge}</span>` : ''}</a>`;
+      ${it.badgeKey ? `<span class="badge" data-badge="${it.badgeKey}" hidden></span>` : ''}</a>`;
   };
 
   // 上部バー
@@ -161,8 +162,25 @@ window.AMT = (function () {
   setUser('…');
   const adminEls = [document.getElementById('adminHeading'), document.getElementById('adminSection')];
   adminEls.forEach(el => { el.hidden = true; });
+  // チャット未読バッジ(チャットページ自身も AMT.setUnread で更新する)
+  AMT.setUnread = n => {
+    const b = sidebar.querySelector('[data-badge=chat]');
+    b.textContent = n > 99 ? '99+' : n;
+    b.hidden = !n;
+  };
+  const pollUnread = () => {
+    if (document.hidden) return;
+    AMT.api('/api/chat/unread').then(d => AMT.setUnread(d.unread)).catch(() => {});
+  };
+  if (path !== '/chat') {
+    pollUnread();
+    setInterval(pollUnread, 30000);
+    document.addEventListener('visibilitychange', pollUnread);
+  }
+
   AMT.me = AMT.api('/api/me').then(d => {
     setUser(d.name);
+    sidebar.querySelector('.userName').title = `${d.name}(${d.role_label})`;
     adminEls.forEach(el => { el.hidden = !d.is_admin; });
     return d;
   });

@@ -25,6 +25,7 @@ engine = create_engine(_db_url(), pool_pre_ping=True)
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 MEALS = ("dinner", "breakfast")
+ROLES = {"admin": "管理者", "front": "フロント", "restaurant": "レストラン"}
 DEFAULT_SLOTS = {
     "dinner": ["17:30", "18:00", "18:30", "19:00", "19:30", "20:00"],
     "breakfast": ["07:00", "07:30", "08:00", "08:30", "09:00"],
@@ -49,9 +50,28 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True)
     display_name: Mapped[str] = mapped_column(String(64))
     password_hash: Mapped[str] = mapped_column(String(255))
-    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    role: Mapped[str] = mapped_column(String(16), default="front")  # ROLES のキー
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # role == "admin" と同期(旧列)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    role: Mapped[str] = mapped_column(String(16))  # 投稿時点の役割
+    body: Mapped[str] = mapped_column(Text, default="")
+    reservation_id: Mapped[int | None] = mapped_column(ForeignKey("reservations.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_jst)
+    retracted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 取り消し(本文はDBに残す)
+
+
+class ChatRead(Base):
+    """ユーザーごとの既読位置"""
+    __tablename__ = "chat_reads"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    last_read_id: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class TimeSlot(Base):
@@ -98,21 +118,24 @@ class ReservationHistory(Base):
     changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
-# 既存テーブルに後から追加した列: (テーブル, 列, 型とデフォルト)
+# 既存テーブルに後から追加した列: (テーブル, 列, 型とデフォルト, 追加直後に流すSQL)
 ADDED_COLUMNS = [
-    ("reservations", "nights", "INTEGER NOT NULL DEFAULT 1"),
-    ("reservations", "night_no", "INTEGER NOT NULL DEFAULT 1"),
-    ("reservations", "stay_id", "VARCHAR(32)"),
-    ("reservations", "group_id", "VARCHAR(32)"),
+    ("reservations", "nights", "INTEGER NOT NULL DEFAULT 1", None),
+    ("reservations", "night_no", "INTEGER NOT NULL DEFAULT 1", None),
+    ("reservations", "stay_id", "VARCHAR(32)", None),
+    ("reservations", "group_id", "VARCHAR(32)", None),
+    ("users", "role", "VARCHAR(16) NOT NULL DEFAULT 'front'", "UPDATE users SET role = 'admin' WHERE is_admin"),
 ]
 
 
 def _migrate() -> None:
     insp = inspect(engine)
     with engine.begin() as conn:
-        for table, col, ddl in ADDED_COLUMNS:
+        for table, col, ddl, backfill in ADDED_COLUMNS:
             if col not in {c["name"] for c in insp.get_columns(table)}:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+                if backfill:
+                    conn.execute(text(backfill))
 
 
 def init_db() -> None:

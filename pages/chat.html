@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>チャット｜阿蘇リゾートグランヴィリオホテル　喫食時間管理表</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.44.0/tabler-icons.min.css">
+<link rel="stylesheet" href="/static/common.css">
+<link rel="stylesheet" href="/static/chat.css">
+</head>
+<body>
+<div id="chat">
+  <div class="pageHead"><h1>チャット</h1><span class="muted chatSub">フロント・レストラン・管理者の連絡用</span></div>
+  <div class="chatLog" id="chatLog" aria-live="polite"><p class="empty">読み込み中…</p></div>
+  <form class="composer" id="composer">
+    <div class="attached" id="attached" hidden></div>
+    <div class="composeRow">
+      <button type="button" class="iconBtn" id="attachBtn" title="予約を添付" aria-label="予約を添付"><i class="ti ti-paperclip"></i></button>
+      <textarea id="msgInput" rows="1" maxlength="2000" placeholder="メッセージを入力(Enterで送信・Shift+Enterで改行)"></textarea>
+      <button type="submit" class="btn primary" id="sendBtn"><i class="ti ti-send"></i><span class="sendLbl">送信</span></button>
+    </div>
+  </form>
+</div>
+<script src="/static/common.js"></script>
+<script src="/static/chat.js"></script>
+</body>
+</html>

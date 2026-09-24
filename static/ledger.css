@@ -30,6 +30,8 @@
 .ledgerTable th.sorted{color:var(--accent)}
 .ledgerTable th.sorted i{color:var(--accent)}
 .ledgerTable tbody tr{cursor:pointer}
+@keyframes rowFlash{0%,60%{background:#fff3b0}100%{background:transparent}}
+.ledgerTable tbody tr.flash td{animation:rowFlash 2.6s ease-out}
 .ledgerTable tbody tr:hover td{background:#f7fbff}
 .ledgerTable tbody tr.slotBreak td{border-top:2px solid #cfdcea}
 .ledgerTable tbody tr.noSlot td:first-child{background:#fff9ec}

@@ -1,0 +1,60 @@
+/* chat.css — チャット */
+#chat{display:flex;flex-direction:column;height:calc(100dvh - 53px - 36px);max-width:900px}
+#chat .pageHead{margin-bottom:8px}
+.chatSub{font-size:12px}
+
+.chatLog{flex:1;min-height:0;overflow-y:auto;border:1px solid var(--line);border-radius:10px 10px 0 0;
+  background:#f7f8fa;padding:12px 14px}
+.daySep{text-align:center;margin:10px 0}
+.daySep span{font-size:11px;color:#777;background:#e9ebef;border-radius:999px;padding:2px 10px}
+
+.msg{margin:8px 0;display:flex;flex-direction:column;max-width:78%}
+.msg.mine{margin-left:auto;align-items:flex-end}
+.msg .who{font-size:12px;color:#555;margin:0 0 3px 2px;display:flex;align-items:center;gap:6px}
+.roleTag{font-size:10.5px;font-weight:700;padding:0 6px;border-radius:4px;line-height:17px}
+.roleTag.role-front{background:#e3effc;color:#185fa5}
+.roleTag.role-restaurant{background:#fdf0e1;color:#a55a00}
+.roleTag.role-admin{background:#f0e6fb;color:#6a3fa0}
+.bubbleRow{display:flex;align-items:flex-end;gap:6px}
+.msg.mine .bubbleRow{flex-direction:row-reverse}
+.bubble{background:#fff;border:1px solid #e3e5e9;border-radius:4px 14px 14px 14px;padding:8px 12px;font-size:14px;
+  line-height:1.55;min-width:0;display:grid;gap:6px}
+.msg.mine .bubble{background:var(--accent);border-color:var(--accent);color:#fff;border-radius:14px 4px 14px 14px}
+.bubble .text{white-space:pre-wrap;word-break:break-word}
+.bubble.retracted,.msg.mine .bubble.retracted{background:transparent;border:1px dashed #ccc;color:#999;font-size:12px;
+  display:flex;align-items:center;gap:4px}
+.meta{display:flex;flex-direction:column;align-items:flex-end;font-size:10.5px;color:#999;white-space:nowrap;gap:1px}
+.msg.other .meta{align-items:flex-start}
+.meta .read{color:var(--accent);font-weight:500}
+.retract{all:unset;cursor:pointer;color:#aaa;font-size:10.5px}
+.retract:hover{color:#c0392b;text-decoration:underline}
+
+.resCard{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:#f2f6fb;
+  border:1px solid #d6e3f2;color:#1a1a1a;text-decoration:none;font-size:13px;line-height:1.4}
+.resCard > i:first-child{color:var(--accent);font-size:17px;flex-shrink:0}
+.resCard .go{margin-left:auto;color:#999}
+.resCard .muted{margin-left:4px;font-size:12px}
+a.resCard:hover{background:#e6eef8}
+.resCard.deleted{opacity:.6}
+.msg.mine .resCard{background:rgba(255,255,255,.95);border-color:transparent}
+
+.composer{border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;background:#fff;padding:8px}
+.attached{margin-bottom:6px}
+.attached .resCard{display:inline-flex;max-width:100%}
+.attached .iconBtn{width:24px;height:24px;margin-left:4px}
+.composeRow{display:flex;align-items:flex-end;gap:6px}
+.composeRow textarea{flex:1;min-height:36px;max-height:160px;resize:none;height:36px;padding:7px 10px;line-height:1.5;overflow-y:hidden}
+.composeRow .btn{height:36px}
+
+.pickList{max-height:320px;overflow-y:auto;border:1px solid #eee;border-radius:8px}
+.pickItem{all:unset;box-sizing:border-box;display:grid;grid-template-columns:70px 1fr auto;gap:10px;width:100%;
+  padding:9px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:14px}
+.pickItem:hover,.pickItem:focus-visible{background:#f2f6fb}
+.pickItem:last-child{border-bottom:none}
+
+@media (max-width:640px){
+  #chat{height:calc(100dvh - 53px - 28px)}
+  .msg{max-width:90%}
+  .chatSub{display:none}
+  .sendLbl{display:none}
+}

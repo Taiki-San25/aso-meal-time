@@ -82,9 +82,11 @@ body.sbCollapsed #accountRow{justify-content:center;padding:12px 0}
 body.sbCollapsed #accountRow .avatar,
 body.sbCollapsed #accountRow .userName,
 body.sbCollapsed a.navRow .lbl,
-body.sbCollapsed a.navRow .badge,
 body.sbCollapsed .navHeading{display:none}
 body.sbCollapsed .navSection.closed{display:block}
+/* 格納時の未読バッジはアイコン右上に小さく */
+a.navRow{position:relative}
+body.sbCollapsed a.navRow .badge{position:absolute;top:4px;left:30px;font-size:9px;padding:0 5px}
 
 /* ---------- メイン ---------- */
 #mainContent{margin-left:220px;margin-top:53px;padding:12px 32px 24px;transition:margin-left 0.15s}
@@ -115,7 +117,7 @@ body.sbCollapsed #mainContent{margin-left:60px}
   body.sbCollapsed #accountRow .avatar,body.sbCollapsed #accountRow .userName{display:flex}
   body.sbCollapsed #accountRow .userName{display:block}
   body.sbCollapsed a.navRow .lbl{display:block}
-  body.sbCollapsed a.navRow .badge{display:inline-block}
+  body.sbCollapsed a.navRow .badge{position:static;font-size:10px;padding:1px 7px}
   body.sbCollapsed .navHeading{display:flex}
   body.sbCollapsed .navSection.closed{display:none}
   #mainContent,body.sbCollapsed #mainContent{margin-left:0;padding:10px 14px 18px}
