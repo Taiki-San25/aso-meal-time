@@ -122,7 +122,7 @@ def me(user: User = Depends(current_user)):
 
 class PasswordIn(BaseModel):
     current: str
-    new: str = Field(min_length=8, max_length=128)
+    new: str = Field(min_length=4, max_length=128)
 
 
 @app.post("/api/me/password")
@@ -408,13 +408,13 @@ def set_role(u: User, role: str) -> None:
 class UserCreateIn(BaseModel):
     username: str = Field(pattern=r"^[A-Za-z0-9_.-]{2,64}$")
     display_name: str = Field(min_length=1, max_length=64)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=4, max_length=128)
     role: Role = "front"
 
 
 class UserUpdateIn(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=64)
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+    password: str | None = Field(default=None, min_length=4, max_length=128)
     role: Role | None = None
     active: bool | None = None
 

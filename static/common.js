@@ -215,8 +215,8 @@ window.AMT = (function () {
       title: 'パスワード変更',
       body: `<form class="form">
         <label>現在のパスワード<input type="password" name="current" required autocomplete="current-password"></label>
-        <label>新しいパスワード(8文字以上)<input type="password" name="new" required minlength="8" autocomplete="new-password"></label>
-        <label>新しいパスワード(確認)<input type="password" name="confirm" required minlength="8" autocomplete="new-password"></label>
+        <label>新しいパスワード(4文字以上)<input type="password" name="new" required minlength="4" autocomplete="new-password"></label>
+        <label>新しいパスワード(確認)<input type="password" name="confirm" required minlength="4" autocomplete="new-password"></label>
       </form>`,
       buttons: [{ label: 'キャンセル' }, {
         label: '変更する', primary: true, onClick: async () => {
