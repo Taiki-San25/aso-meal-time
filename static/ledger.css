@@ -1,8 +1,8 @@
 /* ledger.css — 喫食時間管理表 */
 /* 表示中の日付による背景色(過去=グレー、未来=ブルー、今日=白) */
 body{transition:background-color .2s}
-body.dayPast{background:#e9e9e9}
-body.dayFuture{background:#e3eefa}
+body.dayPast{background:rgba(233,233,233,.5)}
+body.dayFuture{background:rgba(227,238,250,.5)}
 @media print{body.dayPast,body.dayFuture{background:#fff}}
 .ledgerBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .ledgerBar .dateNav{display:flex;align-items:center;gap:4px}
