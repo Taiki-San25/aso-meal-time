@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import (JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, Text,
-                        create_engine, func, select)
+                        create_engine, func, inspect, select, text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 BASE = Path(__file__).parent
@@ -73,6 +73,9 @@ class Reservation(Base):
     children: Mapped[int] = mapped_column(Integer, default=0)
     infants: Mapped[int] = mapped_column(Integer, default=0)
     time_slot: Mapped[str | None] = mapped_column(String(16), nullable=True)  # None = 未定
+    nights: Mapped[int] = mapped_column(Integer, default=1)    # 泊数
+    night_no: Mapped[int] = mapped_column(Integer, default=1)  # 何泊目か
+    stay_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)  # 連泊分をまとめるID
     allergy: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_jst)
@@ -94,8 +97,25 @@ class ReservationHistory(Base):
     changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
+# 既存テーブルに後から追加した列: (テーブル, 列, 型とデフォルト)
+ADDED_COLUMNS = [
+    ("reservations", "nights", "INTEGER NOT NULL DEFAULT 1"),
+    ("reservations", "night_no", "INTEGER NOT NULL DEFAULT 1"),
+    ("reservations", "stay_id", "VARCHAR(32)"),
+]
+
+
+def _migrate() -> None:
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, col, ddl in ADDED_COLUMNS:
+            if col not in {c["name"] for c in insp.get_columns(table)}:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}"))
+
+
 def init_db() -> None:
     Base.metadata.create_all(engine)
+    _migrate()
     with Session(engine) as s:
         for meal in MEALS:
             if s.scalar(select(func.count()).select_from(TimeSlot).where(TimeSlot.meal == meal)) == 0:

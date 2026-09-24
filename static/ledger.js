@@ -46,7 +46,7 @@
     <div class="summary" id="ldSummary"></div>
     <div class="tableWrap"><table class="grid ledgerTable">
       <thead><tr>
-        <th>時間</th><th>部屋</th><th>代表者名</th>
+        <th>時間</th><th>部屋</th><th>代表者名</th><th>泊数</th>
         <th class="num">大人</th><th class="num">子供</th><th class="num">幼児</th><th class="num">計</th>
         <th>アレルギー</th><th>備考</th><th class="noPrint">更新</th>
       </tr></thead>
@@ -85,7 +85,8 @@
     return `${y === String(new Date().getFullYear()) ? '' : y + '/'}${+mo}/${+da} ${t.slice(0, 5)}`;
   };
   const FIELD_LABELS = { date: '日付', time_slot: '時間', room: '部屋', guest_name: '代表者名', adults: '大人',
-    children: '子供', infants: '幼児', allergy: 'アレルギー', note: '備考' };
+    children: '子供', infants: '幼児', nights: '泊数', night_no: '何泊目', allergy: 'アレルギー', note: '備考' };
+  const nightsLabel = r => r.nights > 1 ? `${r.nights}泊<span class="muted">(${r.night_no}/${r.nights})</span>` : '1泊';
   const ACTION_LABELS = { create: '登録', update: '変更', delete: '削除', restore: '復元' };
   const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定') : (v === '' || v === null ? '(空欄)' : String(v));
 
@@ -139,7 +140,7 @@
     const rows = visibleRows();
     const tbody = $('ldBody');
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="10" class="empty">${state.rows.length ? '該当する予約はありません' : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="empty">${state.rows.length ? '該当する予約はありません' : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
       return;
     }
     let prevSlot = null;
@@ -154,6 +155,7 @@
           <span class="printOnly">${r.time_slot || '未定'}</span>`}</td>
         <td class="room">${esc(r.room)}</td>
         <td>${esc(r.guest_name)}</td>
+        <td class="nights">${nightsLabel(r)}</td>
         <td class="num">${r.adults}</td><td class="num">${r.children}</td><td class="num">${r.infants}</td>
         <td class="num"><b>${total(r)}</b></td>
         <td class="allergyCell">${r.allergy ? `<span class="allergy"><i class="ti ti-alert-triangle"></i>${esc(r.allergy)}</span>` : ''}</td>
@@ -169,15 +171,20 @@
   function openForm(r) {
     const isNew = !r;
     if (r && r.deleted) return openDeleted(r);
-    r = r || { date: state.date, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '' };
+    r = r || { date: state.date, nights: 1, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '' };
+    const dateLabel = d => `${d.replace(/-/g, '/')}(${dow(d)})`;
     const m = modal({
       title: isNew ? '予約を追加' : `予約を編集(${r.room})`,
       wide: true,
       body: `<form class="form">
+        <p class="formDate"><i class="ti ti-calendar"></i>${dateLabel(r.date)}${isNew
+          ? '<span class="muted">から登録</span>'
+          : `<span class="muted">${r.nights > 1 ? `${r.nights}泊の${r.night_no}泊目` : '1泊'}</span>`}</p>
         <div class="row">
-          <label>日付<input type="date" name="date" value="${r.date}" required></label>
           <label>時間<select name="time_slot">${slotOptions(r.time_slot)}</select></label>
+          ${isNew ? '<label>泊数<input type="number" name="nights" value="1" min="1" max="30" required></label>' : ''}
         </div>
+        ${isNew ? '<p class="muted nightsHint" style="margin:-4px 0 0;font-size:12px"></p>' : ''}
         <div class="row">
           <label>部屋番号<input type="text" name="room" value="${esc(r.room)}" required maxlength="32"></label>
           <label>代表者名<input type="text" name="guest_name" value="${esc(r.guest_name)}" maxlength="128"></label>
@@ -199,20 +206,36 @@
             const f = m.querySelector('form');
             if (!f.reportValidity()) return false;
             const body = {
-              date: f.date.value, time_slot: f.time_slot.value || null,
+              time_slot: f.time_slot.value || null,
               room: f.room.value, guest_name: f.guest_name.value,
               adults: +f.adults.value, children: +f.children.value, infants: +f.infants.value,
               allergy: f.allergy.value, note: f.note.value,
             };
-            await api(isNew ? `/api/${MEAL}/reservations` : `/api/${MEAL}/reservations/${r.id}`,
-              { method: isNew ? 'POST' : 'PUT', body });
-            toast(body.date !== state.date ? `${body.date.replace(/-/g, '/')} の台帳に保存しました` : (isNew ? '追加しました' : '保存しました'));
+            if (isNew) {
+              Object.assign(body, { date: state.date, nights: +f.nights.value });
+              await api(`/api/${MEAL}/reservations`, { method: 'POST', body });
+              toast(body.nights > 1 ? `${body.nights}泊分(${body.nights}日)を登録しました` : '追加しました');
+            } else {
+              await api(`/api/${MEAL}/reservations/${r.id}`, { method: 'PUT', body });
+              toast('保存しました');
+            }
             await loadRows();
           }
         }
       ]
     });
-    if (!isNew) loadHistory(r, m);
+    if (isNew) {
+      // 連泊時に登録される日付を表示
+      const f = m.querySelector('form');
+      const hint = m.querySelector('.nightsHint');
+      const upd = () => {
+        const n = Math.min(Math.max(+f.nights.value || 1, 1), 30);
+        hint.textContent = n > 1 ? `${dateLabel(state.date)} 〜 ${dateLabel(addDays(state.date, n - 1))} の${n}日分を登録します` : '';
+      };
+      f.nights.addEventListener('input', upd);
+    } else {
+      loadHistory(r, m);
+    }
   }
 
   // 登録・更新・削除の記録と変更履歴
@@ -253,6 +276,7 @@
       body: `<div class="readonly">
         ${item('日付', r.date.replace(/-/g, '/'))}${item('時間', r.time_slot || '未定')}
         ${item('部屋番号', r.room)}${item('代表者名', r.guest_name)}
+        ${item('泊数', r.nights > 1 ? `${r.nights}泊(${r.night_no}泊目)` : '1泊')}
         ${item('人数', `大人${r.adults} 子供${r.children} 幼児${r.infants}(計${total(r)})`)}
         ${item('アレルギー', r.allergy)}${item('備考', r.note)}
       </div>${auditHtml(r)}`,

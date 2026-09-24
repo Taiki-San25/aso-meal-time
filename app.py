@@ -1,8 +1,9 @@
 import os
 import re
 import secrets
+import uuid
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -178,9 +179,9 @@ def norm_time(v: str | None) -> str | None:
 
 
 class ReservationIn(BaseModel):
+    """編集用(日付・泊数は変更しない)"""
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    date: date
     room: str = Field(min_length=1, max_length=32)
     guest_name: str = Field(default="", max_length=128)
     adults: int = Field(default=0, ge=0, le=99)
@@ -193,13 +194,20 @@ class ReservationIn(BaseModel):
     _time = field_validator("time_slot")(norm_time)
 
 
+class ReservationCreateIn(ReservationIn):
+    """登録用: date は管理表で表示中の日付。泊数分の日付に1件ずつ登録する"""
+    date: date
+    nights: int = Field(default=1, ge=1, le=30)
+
+
 class TimeSlotIn(BaseModel):
     time_slot: str | None = None
 
     _time = field_validator("time_slot")(norm_time)
 
 
-TRACKED = ("date", "time_slot", "room", "guest_name", "adults", "children", "infants", "allergy", "note")
+TRACKED = ("date", "nights", "night_no", "time_slot", "room", "guest_name", "adults", "children", "infants",
+           "allergy", "note")
 
 
 def iso(v: datetime | None) -> str | None:
@@ -265,16 +273,24 @@ def list_reservations(meal: str, d: date, include_deleted: bool = False, _: User
 
 
 @app.post("/api/{meal}/reservations")
-def create_reservation(meal: str, body: ReservationIn, user: User = Depends(current_user),
+def create_reservation(meal: str, body: ReservationCreateIn, user: User = Depends(current_user),
                        db: Session = Depends(get_db)):
+    check_meal(meal)
     now = now_jst()
-    r = Reservation(meal=check_meal(meal), **body.model_dump(),
-                    created_at=now, created_by=user.id, updated_at=now, updated_by=user.id)
-    db.add(r)
-    db.flush()
-    record(db, r, user, "create", {f: [None, v] for f, v in snapshot(r).items()})
+    values = body.model_dump(exclude={"date", "nights"})
+    stay_id = uuid.uuid4().hex if body.nights > 1 else None
+    created = []
+    for i in range(body.nights):
+        r = Reservation(meal=meal, date=body.date + timedelta(days=i), nights=body.nights, night_no=i + 1,
+                        stay_id=stay_id, **values,
+                        created_at=now, created_by=user.id, updated_at=now, updated_by=user.id)
+        db.add(r)
+        db.flush()
+        record(db, r, user, "create", {f: [None, v] for f, v in snapshot(r).items()})
+        created.append(r)
     db.commit()
-    return to_dict(r, user_names(db))
+    names = user_names(db)
+    return [to_dict(r, names) for r in created]
 
 
 @app.put("/api/{meal}/reservations/{rid}")
