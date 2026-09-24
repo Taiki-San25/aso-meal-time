@@ -37,7 +37,6 @@
 .ledgerTable td{white-space:nowrap}
 .ledgerTable td.empty{white-space:normal}
 .ledgerTable td.note,.ledgerTable td.allergyCell{white-space:pre-wrap;min-width:160px}
-.ledgerTable td.nights .muted{font-size:11px;margin-left:2px}
 .formDate{margin:0;font-size:15px;font-weight:500;display:flex;align-items:center;gap:6px}
 .formDate i{color:var(--accent);font-size:18px}
 .formDate .muted{font-size:12px;font-weight:400}

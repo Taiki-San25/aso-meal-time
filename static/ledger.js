@@ -18,7 +18,7 @@
     { key: 'time', label: '時間', val: r => r.time_slot || '' },
     { key: 'room', label: '部屋', val: byText('room') },
     { key: 'guest_name', label: '代表者名', val: byText('guest_name') },
-    { key: 'nights', label: '泊数', val: r => r.nights },
+    { key: 'nights', label: '泊数', val: r => r.nights * 100 + r.night_no },
     { key: 'adults', label: '大人', num: true, val: r => r.adults },
     { key: 'children', label: '子供', num: true, val: r => r.children },
     { key: 'infants', label: '幼児', num: true, val: r => r.infants },
@@ -95,7 +95,7 @@
   };
   const FIELD_LABELS = { date: '日付', time_slot: '時間', room: '部屋', guest_name: '代表者名', adults: '大人',
     children: '子供', infants: '幼児', nights: '泊数', night_no: '何泊目', allergy: 'アレルギー', note: '備考' };
-  const nightsLabel = r => r.nights > 1 ? `${r.nights}泊<span class="muted">(${r.night_no}/${r.nights})</span>` : '1泊';
+  const nightsLabel = r => `${r.night_no}泊/${r.nights}泊`;
   const ACTION_LABELS = { create: '登録', update: '変更', delete: '削除', restore: '復元' };
   const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定') : (v === '' || v === null ? '(空欄)' : String(v));
 
