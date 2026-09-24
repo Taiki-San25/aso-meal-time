@@ -12,13 +12,29 @@
   const WEEK = '日月火水木金土';
   const dow = s => WEEK[new Date(s + 'T00:00:00').getDay()];
 
+  // 一覧の列。見出しクリックで並び替え(もう一度押すと逆順)
+  const byText = f => r => r[f] || '';
+  const COLUMNS = [
+    { key: 'time', label: '時間', val: r => r.time_slot || '' },
+    { key: 'room', label: '部屋', val: byText('room') },
+    { key: 'guest_name', label: '代表者名', val: byText('guest_name') },
+    { key: 'nights', label: '泊数', val: r => r.nights },
+    { key: 'adults', label: '大人', num: true, val: r => r.adults },
+    { key: 'children', label: '子供', num: true, val: r => r.children },
+    { key: 'infants', label: '幼児', num: true, val: r => r.infants },
+    { key: 'total', label: '計', num: true, val: r => r.adults + r.children + r.infants },
+    { key: 'allergy', label: 'アレルギー', val: byText('allergy') },
+    { key: 'note', label: '備考', val: byText('note') },
+    { key: 'updated', label: '更新', cls: 'noPrint', firstDir: -1, val: r => (r.deleted ? r.deleted_at : r.updated_at) || '' },
+  ];
+
   const params = new URLSearchParams(location.search);
   const state = {
     date: /^\d{4}-\d{2}-\d{2}$/.test(params.get('d') || '') ? params.get('d') : fmtDate(new Date()),
     slots: [],
     rows: [],
     q: '',
-    sort: 'time',
+    sort: { key: 'time', dir: 1 },  // dir: 1=昇順 -1=降順
     showDeleted: false,
   };
 
@@ -32,10 +48,6 @@
         <button class="btn" data-act="today">今日</button>
       </div>
       <input type="search" id="ldSearch" placeholder="部屋・名前・備考で検索" aria-label="検索">
-      <select id="ldSort" aria-label="並び順">
-        <option value="time">時間順</option>
-        <option value="room">部屋順</option>
-      </select>
       <label class="delToggle"><input type="checkbox" id="ldShowDeleted">削除済みも表示</label>
       <div class="barRight">
         <button class="btn" data-act="print"><i class="ti ti-printer"></i>印刷</button>
@@ -45,11 +57,8 @@
     <h2 class="printTitle" id="ldPrintTitle"></h2>
     <div class="summary" id="ldSummary"></div>
     <div class="tableWrap"><table class="grid ledgerTable">
-      <thead><tr>
-        <th>時間</th><th>部屋</th><th>代表者名</th><th>泊数</th>
-        <th class="num">大人</th><th class="num">子供</th><th class="num">幼児</th><th class="num">計</th>
-        <th>アレルギー</th><th>備考</th><th class="noPrint">更新</th>
-      </tr></thead>
+      <thead><tr>${COLUMNS.map(c => `<th class="sortable${c.num ? ' num' : ''}${c.cls ? ' ' + c.cls : ''}" data-sort="${c.key}">
+        <button type="button">${c.label}<i class="ti"></i></button></th>`).join('')}</tr></thead>
       <tbody id="ldBody"></tbody>
     </table></div>`;
 
@@ -94,10 +103,25 @@
     const q = state.q.trim().toLowerCase();
     let rows = state.rows;
     if (q) rows = rows.filter(r => [r.room, r.guest_name, r.allergy, r.note].some(v => v.toLowerCase().includes(q)));
-    const byRoom = (a, b) => a.room.localeCompare(b.room, 'ja', { numeric: true });
-    return [...rows].sort(state.sort === 'time'
-      ? (a, b) => (a.time_slot || '99:99').localeCompare(b.time_slot || '99:99') || byRoom(a, b)
-      : byRoom);
+    const col = COLUMNS.find(c => c.key === state.sort.key);
+    const { dir } = state.sort;
+    const cmp = (x, y) => typeof x === 'number' ? x - y : x.localeCompare(y, 'ja', { numeric: true });
+    const byRoom = (a, b) => cmp(a.room, b.room);
+    return [...rows].sort((a, b) => {
+      const x = col.val(a), y = col.val(b);
+      // 空欄(時間未定など)は並び順に関わらず末尾
+      if ((x === '') !== (y === '')) return x === '' ? 1 : -1;
+      return cmp(x, y) * dir || (col.key === 'room' ? 0 : byRoom(a, b));
+    });
+  }
+
+  function renderSortHeads() {
+    root.querySelectorAll('th[data-sort]').forEach(th => {
+      const on = th.dataset.sort === state.sort.key;
+      th.classList.toggle('sorted', on);
+      th.setAttribute('aria-sort', on ? (state.sort.dir > 0 ? 'ascending' : 'descending') : 'none');
+      th.querySelector('i').className = 'ti ' + (on ? (state.sort.dir > 0 ? 'ti-arrow-up' : 'ti-arrow-down') : 'ti-arrows-sort');
+    });
   }
 
   // 登録済みの時刻が枠設定に無い場合も選択肢に残す
@@ -136,6 +160,7 @@
     $('ldDow').className = 'dow' + ({ 日: ' sun', 土: ' sat' }[dow(state.date)] || '');
     $('ldPrintTitle').textContent = `${MEAL === 'dinner' ? '夕食' : '朝食'}時間管理表　${state.date.replace(/-/g, '/')}(${dow(state.date)})`;
     renderSummary();
+    renderSortHeads();
 
     const rows = visibleRows();
     const tbody = $('ldBody');
@@ -145,7 +170,7 @@
     }
     let prevSlot = null;
     tbody.innerHTML = rows.map(r => {
-      const brk = state.sort === 'time' && prevSlot !== null && prevSlot !== (r.time_slot || UNSET);
+      const brk = state.sort.key === 'time' && prevSlot !== null && prevSlot !== (r.time_slot || UNSET);
       prevSlot = r.time_slot || UNSET;
       const cls = [brk && 'slotBreak', !r.time_slot && !r.deleted && 'noSlot', r.deleted && 'deleted'].filter(Boolean).join(' ');
       return `<tr data-id="${r.id}" class="${cls}">
@@ -322,7 +347,13 @@
   });
   dateInput.addEventListener('change', () => { if (dateInput.value) setDate(dateInput.value); });
   $('ldSearch').addEventListener('input', e => { state.q = e.target.value; render(); });
-  $('ldSort').addEventListener('change', e => { state.sort = e.target.value; render(); });
+  root.querySelector('thead').addEventListener('click', e => {
+    const key = e.target.closest('th[data-sort]')?.dataset.sort;
+    if (!key) return;
+    const col = COLUMNS.find(c => c.key === key);
+    state.sort = state.sort.key === key ? { key, dir: -state.sort.dir } : { key, dir: col.firstDir || 1 };
+    render();
+  });
   $('ldShowDeleted').addEventListener('change', e => { state.showDeleted = e.target.checked; loadRows().catch(() => {}); });
 
   const tbody = $('ldBody');

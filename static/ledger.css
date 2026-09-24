@@ -3,7 +3,6 @@
 .ledgerBar .dateNav{display:flex;align-items:center;gap:4px}
 .ledgerBar #ldDate{width:150px}
 .ledgerBar #ldSearch{width:220px;flex:0 1 220px}
-.ledgerBar #ldSort{width:100px}
 .ledgerBar .barRight{display:flex;gap:8px;margin-left:auto}
 .dow{font-size:13px;color:#555;min-width:2.5em}
 .dow.sun{color:#c0392b}
@@ -21,6 +20,15 @@
 .sumCard.total{border-color:#b8d4ef;background:var(--accent-bg)}
 .sumCard.total .sumLabel{color:var(--accent)}
 
+.ledgerTable th.sortable{padding:0}
+.ledgerTable th.sortable button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:3px;width:100%;
+  padding:7px 10px;cursor:pointer;white-space:nowrap}
+.ledgerTable th.num.sortable button{justify-content:flex-end}
+.ledgerTable th.sortable button:hover{background:#f0f4f9}
+.ledgerTable th.sortable button:focus-visible{outline:2px solid #b5d4f4;outline-offset:-2px}
+.ledgerTable th.sortable i{font-size:13px;color:#ccc}
+.ledgerTable th.sorted{color:var(--accent)}
+.ledgerTable th.sorted i{color:var(--accent)}
 .ledgerTable tbody tr{cursor:pointer}
 .ledgerTable tbody tr:hover td{background:#f7fbff}
 .ledgerTable tbody tr.slotBreak td{border-top:2px solid #cfdcea}
@@ -82,6 +90,8 @@
   .printTitle{display:block;font-size:16px;margin:0 0 8px}
   .printOnly{display:inline;font-weight:700}
   .ledgerTable .slotSel{display:none}
+  .ledgerTable th.sortable i{display:none}
+  .ledgerTable th.sortable button{padding:4px 6px}
   .ledgerTable tbody tr.deleted{display:none}
   .ledgerTable tbody tr:hover td{background:none}
   .ledgerTable tbody tr.noSlot td:first-child{background:none}
