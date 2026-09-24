@@ -47,9 +47,13 @@ a.resCard:hover{background:#e6eef8}
 .composeRow .btn{height:36px}
 
 .pickList{max-height:320px;overflow-y:auto;border:1px solid #eee;border-radius:8px}
-.pickItem{all:unset;box-sizing:border-box;display:grid;grid-template-columns:70px 1fr auto;gap:10px;width:100%;
+.pickItem{all:unset;box-sizing:border-box;display:grid;grid-template-columns:70px 1fr auto;gap:2px 10px;width:100%;
   padding:9px 12px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:14px}
 .pickItem:hover,.pickItem:focus-visible{background:#f2f6fb}
+.pickAllergy,.pickNote{grid-column:2 / -1;display:flex;gap:4px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.pickAllergy{color:#c0392b;font-weight:500}
+.pickNote{color:#666}
+.pickAllergy i,.pickNote i{font-size:13px;margin-top:2px;flex-shrink:0}
 .pickItem:last-child{border-bottom:none}
 
 @media (max-width:640px){

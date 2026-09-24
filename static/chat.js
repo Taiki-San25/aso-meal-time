@@ -155,7 +155,7 @@
           <label>区分<select name="meal"><option value="dinner">夕食</option><option value="breakfast">朝食</option></select></label>
           <label>日付<input type="date" name="date" value="${today()}"></label>
         </div>
-        <input type="search" name="q" placeholder="部屋・名前で絞り込み" aria-label="絞り込み">
+        <input type="search" name="q" placeholder="部屋・名前・アレルギー・備考で絞り込み" aria-label="絞り込み">
         <div class="pickList"><p class="empty">読み込み中…</p></div>
       </div>`,
       buttons: [{ label: 'キャンセル' }],
@@ -165,9 +165,11 @@
     let rows = [];
     const draw = () => {
       const k = q.value.trim().toLowerCase();
-      const shown = rows.filter(r => !k || (r.room + ' ' + r.guest_name).toLowerCase().includes(k));
+      const shown = rows.filter(r => !k || [r.room, r.guest_name, r.allergy, r.note].join(' ').toLowerCase().includes(k));
       list.innerHTML = shown.length ? shown.map(r => `<button type="button" class="pickItem" data-id="${r.id}">
-          <b>${esc(r.room)}</b><span>${esc(r.guest_name)}</span><span class="muted">${r.time_slot || '時間未定'}</span></button>`).join('')
+          <b>${esc(r.room)}</b><span>${esc(r.guest_name)}</span><span class="muted">${r.time_slot || '時間未定'}</span>
+          ${r.allergy ? `<span class="pickAllergy"><i class="ti ti-alert-triangle"></i>${esc(r.allergy)}</span>` : ''}
+          ${r.note ? `<span class="pickNote"><i class="ti ti-note"></i>${esc(r.note)}</span>` : ''}</button>`).join('')
         : '<p class="empty">この日の予約はありません</p>';
     };
     const fetchRows = async () => {
