@@ -16,6 +16,7 @@
   const byText = f => r => r[f] || '';
   const COLUMNS = [
     { key: 'time', label: '時間', val: r => r.time_slot || '' },
+    { key: 'status', label: 'ステータス', val: r => (r.entered_at ? 1 : 0) },
     { key: 'room', label: '部屋', val: byText('room') },
     { key: 'guest_name', label: '代表者名', val: byText('guest_name') },
     { key: 'nights', label: '泊数', val: r => r.nights * 100 + r.night_no },
@@ -36,6 +37,7 @@
     q: '',
     sort: { key: 'time', dir: 1 },  // dir: 1=昇順 -1=降順
     showDeleted: false,
+    role: null,  // ログイン中のロール(入場済の操作はレストランのみ)
   };
 
   root.innerHTML = `
@@ -94,11 +96,12 @@
     return `${y === String(new Date().getFullYear()) ? '' : y + '/'}${+mo}/${+da} ${t.slice(0, 5)}`;
   };
   const FIELD_LABELS = { date: '日付', time_slot: '時間', room: '部屋', guest_name: '代表者名', adults: '大人',
-    children: '子供', infants: '幼児', nights: '泊数', night_no: '何泊目', group_id: 'グループ', allergy: 'アレルギー', note: '備考' };
+    children: '子供', infants: '幼児', nights: '泊数', night_no: '何泊目', group_id: 'グループ', entered_at: 'ステータス', allergy: 'アレルギー', note: '備考' };
   const nightsLabel = r => `${r.night_no}泊/${r.nights}泊`;
   const ACTION_LABELS = { create: '登録', update: '変更', delete: '削除', restore: '復元' };
   const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定')
     : f === 'group_id' ? (v ? 'あり' : 'なし')
+    : f === 'entered_at' ? (v ? `入場済(${fmtTs(v)})` : '空白')
     : (v === '' || v === null ? '(空欄)' : String(v));
 
   // グループ: この日の有効な予約のうち2件以上で構成されるものに G1, G2… を振る(時間→部屋順)
@@ -181,7 +184,7 @@
     const rows = visibleRows();
     const tbody = $('ldBody');
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="11" class="empty">${state.rows.length ? '該当する予約はありません' : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" class="empty">${state.rows.length ? '該当する予約はありません' : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
       return;
     }
     let prevSlot = null;
@@ -195,6 +198,7 @@
           ? `<span class="delBadge">削除済</span> ${r.time_slot || '未定'}`
           : `<select class="slotSel" aria-label="時間">${slotOptions(r.time_slot)}</select>
           <span class="printOnly">${r.time_slot || '未定'}</span>`}</td>
+        <td class="status">${statusCell(r)}</td>
         <td class="room">${esc(r.room)}${groupTag(groups[r.group_id])}</td>
         <td>${esc(r.guest_name)}</td>
         <td class="nights">${nightsLabel(r)}</td>
@@ -207,6 +211,15 @@
           : `${fmtTs(r.updated_at)}<br>${esc(r.updated_by)}`}</td>
       </tr>`;
     }).join('');
+  }
+
+  // ステータス: レストランは(削除済み以外)チェックボックス、他ロールは表示のみ
+  function statusCell(r) {
+    const title = r.entered_at ? ` title="${fmtTs(r.entered_at)} ${esc(r.entered_by)}"` : '';
+    if (state.role === 'restaurant' && !r.deleted) {
+      return `<label class="entChk"${title}><input type="checkbox" class="entSel" ${r.entered_at ? 'checked' : ''}>入場済</label>`;
+    }
+    return r.entered_at ? `<span class="entBadge"${title}><i class="ti ti-check"></i>入場済</span>` : '';
   }
 
   // ---------- 編集 ----------
@@ -425,8 +438,26 @@
     } catch (err) { /* toast 済み */ }
     render();
   });
+  tbody.addEventListener('change', async e => {
+    if (!e.target.classList.contains('entSel')) return;
+    const cb = e.target;
+    const entered = cb.checked;
+    cb.checked = !entered;  // 確認で「はい」を押すまで戻しておく
+    const r = state.rows.find(x => x.id === +cb.closest('tr').dataset.id);
+    const who = `${esc(r.room)} ${esc(r.guest_name)}${r.guest_name ? ' 様' : ''}`;
+    const ok = await confirmDialog(entered
+      ? { title: '入場済にする', message: `${who}を入場済にしますか？`, ok: 'はい', cancel: 'いいえ' }
+      : { title: '入場済を取り消す', message: `${who}の入場済を取り消しますか？`, ok: 'はい', cancel: 'いいえ' });
+    if (!ok) return;
+    try {
+      const updated = await api(`/api/${MEAL}/reservations/${r.id}/entered`, { method: 'PATCH', body: { entered } });
+      state.rows = state.rows.map(x => x.id === r.id ? updated : x);
+      toast(entered ? `${r.room} を入場済にしました` : `${r.room} の入場済を取り消しました`);
+    } catch (err) { /* toast 済み */ }
+    render();
+  });
   tbody.addEventListener('click', e => {
-    if (e.target.closest('select')) return;
+    if (e.target.closest('select, .entChk')) return;
     const tr = e.target.closest('tr[data-id]');
     if (tr) openForm(state.rows.find(r => r.id === +tr.dataset.id));
   });
@@ -453,5 +484,6 @@
     setTimeout(() => row.classList.remove('flash'), 2600);
   }
 
+  AMT.me.then(me => { state.role = me.role; render(); }).catch(() => {});
   loadSlots().then(loadRows).then(() => highlight(params.get('hl'))).catch(() => {});
 })();

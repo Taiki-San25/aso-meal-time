@@ -105,6 +105,8 @@ class Reservation(Base):
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # None = 有効
     deleted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    entered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # ステータス: None=空白, あり=入場済
+    entered_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 
 class ReservationHistory(Base):
@@ -125,6 +127,8 @@ ADDED_COLUMNS = [
     ("reservations", "stay_id", "VARCHAR(32)", None),
     ("reservations", "group_id", "VARCHAR(32)", None),
     ("users", "role", "VARCHAR(16) NOT NULL DEFAULT 'front'", "UPDATE users SET role = 'admin' WHERE is_admin"),
+    ("reservations", "entered_at", "TIMESTAMP", None),
+    ("reservations", "entered_by", "INTEGER", None),
 ]
 
 

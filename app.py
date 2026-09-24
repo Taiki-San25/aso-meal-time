@@ -213,7 +213,7 @@ class TimeSlotIn(BaseModel):
 
 
 TRACKED = ("date", "nights", "night_no", "time_slot", "room", "guest_name", "adults", "children", "infants",
-           "allergy", "note", "group_id")
+           "allergy", "note", "group_id", "entered_at")
 GROUP_FIELDS = {"grouped", "group_with"}
 
 
@@ -222,7 +222,8 @@ def iso(v: datetime | None) -> str | None:
 
 
 def snapshot(r: Reservation) -> dict:
-    return {f: (getattr(r, f).isoformat() if f == "date" else getattr(r, f)) for f in TRACKED}
+    return {f: (v.isoformat() if isinstance(v, (date, datetime)) else v)
+            for f in TRACKED for v in [getattr(r, f)]}
 
 
 def to_dict(r: Reservation, names: dict[int, str]) -> dict:
@@ -231,6 +232,7 @@ def to_dict(r: Reservation, names: dict[int, str]) -> dict:
         "created_at": iso(r.created_at), "created_by": names.get(r.created_by, ""),
         "updated_at": iso(r.updated_at), "updated_by": names.get(r.updated_by, ""),
         "deleted": r.deleted_at is not None,
+        "entered_by": names.get(r.entered_by, ""),
         "deleted_at": iso(r.deleted_at), "deleted_by": names.get(r.deleted_by, ""),
     }
 
@@ -358,6 +360,24 @@ def set_time(meal: str, rid: int, body: TimeSlotIn, user: User = Depends(current
     r = get_reservation(db, check_meal(meal), rid)
     change(db, r, {"time_slot": body.time_slot}, user)
     db.commit()
+    return to_dict(r, user_names(db))
+
+
+class EnteredIn(BaseModel):
+    entered: bool
+
+
+@app.patch("/api/{meal}/reservations/{rid}/entered")
+def set_entered(meal: str, rid: int, body: EnteredIn, user: User = Depends(current_user),
+                db: Session = Depends(get_db)):
+    """ステータス(入場済)の切り替え。レストランロールのみ"""
+    if user.role != "restaurant":
+        raise HTTPException(403, "入場済の操作はレストランのみ可能です")
+    r = get_reservation(db, check_meal(meal), rid)
+    if body.entered != (r.entered_at is not None):
+        change(db, r, {"entered_at": now_jst() if body.entered else None,
+                       "entered_by": user.id if body.entered else None}, user)
+        db.commit()
     return to_dict(r, user_names(db))
 
 
