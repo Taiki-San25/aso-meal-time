@@ -5,6 +5,7 @@
   const { esc, api, toast, modal } = AMT;
   const REFRESH_MS = 30000;
   const UNSET = '';  // 時間未定
+  const MAX_COUNT = 6;  // フォームで選べる人数の上限
 
   const pad = n => String(n).padStart(2, '0');
   const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -245,6 +246,12 @@
     r = r || { date: state.date, nights: 1, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '',
       ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, 0])) };
     const dateLabel = d => `${d.replace(/-/g, '/')}(${dow(d)})`;
+    // 人数は 0〜MAX_COUNT のプルダウン(既存データが上限超えなら、その値も選択肢に残す)
+    const countSelect = (name, v, extra = '') => {
+      const vals = [...Array(MAX_COUNT + 1).keys()];
+      if (v > MAX_COUNT) vals.push(v);
+      return `<select name="${name}"${extra}>${vals.map(n => `<option value="${n}"${n === v ? ' selected' : ''}>${n}</option>`).join('')}</select>`;
+    };
     const groups = groupInfo();
     const myGroup = groups[r.group_id];
     const candidates = active().filter(x => x.id !== r.id)
@@ -280,13 +287,13 @@
           <label>代表者名<input type="text" name="guest_name" value="${esc(r.guest_name)}" maxlength="128"></label>
         </div>
         <div class="row">
-          <label>大人<input type="number" name="adults" value="${r.adults}" min="0" max="99" required></label>
-          <label>子供<input type="number" name="children" value="${r.children}" min="0" max="99" required></label>
-          <label>幼児<input type="number" name="infants" value="${r.infants}" min="0" max="99" required></label>
+          <label>大人${countSelect('adults', r.adults)}</label>
+          <label>子供${countSelect('children', r.children)}</label>
+          <label>幼児${countSelect('infants', r.infants)}</label>
         </div>
         <div class="row countRow">
           ${COUNT_FIELDS.map(c => `<label title="${c.full}"><span class="abbrWrap">${countIcon(c)}<span class="abbr">${c.short}</span></span>
-            <input type="number" name="${c.key}" value="${r[c.key] ?? 0}" min="0" max="99" required aria-label="${c.full}"></label>`).join('')}
+            ${countSelect(c.key, r[c.key] ?? 0, ` aria-label="${c.full}"`)}</label>`).join('')}
         </div>
         <label>アレルギー<textarea name="allergy" maxlength="2000">${esc(r.allergy)}</textarea></label>
         <label>備考<textarea name="note" maxlength="2000">${esc(r.note)}</textarea></label>
