@@ -89,13 +89,26 @@
     state.slots = await api(`/api/slots/${MEAL}`);
   }
 
+  // 日付を素早く切り替えたとき、後から返ってきた古い日付の結果で上書きしないよう最新の要求だけ反映する
+  let loadSeq = 0;
   async function loadRows() {
-    state.rows = await api(`/api/${MEAL}/reservations?d=${state.date}${state.showDeleted ? '&include_deleted=true' : ''}`);
+    const seq = ++loadSeq;
+    const rows = await api(`/api/${MEAL}/reservations?d=${state.date}${state.showDeleted ? '&include_deleted=true' : ''}`);
+    if (seq !== loadSeq) return;
+    state.rows = rows;
     render();
+  }
+
+  // 背景色: 表示中の日付が今日(0:00区切り)より前=グレー、後=ブルー、今日=白
+  function applyDayTone() {
+    const today = fmtDate(new Date());
+    document.body.classList.toggle('dayPast', state.date < today);
+    document.body.classList.toggle('dayFuture', state.date > today);
   }
 
   function setDate(d) {
     state.date = d;
+    applyDayTone();
     const u = new URL(location.href);
     u.searchParams.set('d', d);
     history.replaceState(null, '', u);
@@ -191,6 +204,7 @@
   }
 
   function render() {
+    applyDayTone();
     dateInput.value = state.date;
     $('ldDow').textContent = `(${dow(state.date)})`;
     $('ldDow').className = 'dow' + ({ 日: ' sun', 土: ' sat' }[dow(state.date)] || '');
