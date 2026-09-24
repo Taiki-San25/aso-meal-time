@@ -191,6 +191,11 @@ class ReservationIn(BaseModel):
     adults: int = Field(default=0, ge=0, le=99)
     children: int = Field(default=0, ge=0, le=99)
     infants: int = Field(default=0, ge=0, le=99)
+    adult_coupon: int = Field(default=0, ge=0, le=99)
+    free_adult: int = Field(default=0, ge=0, le=99)
+    free_child: int = Field(default=0, ge=0, le=99)
+    child_coupon: int = Field(default=0, ge=0, le=99)
+    outside: int = Field(default=0, ge=0, le=99)
     time_slot: str | None = None
     allergy: str = Field(default="", max_length=2000)
     note: str = Field(default="", max_length=2000)
@@ -213,7 +218,7 @@ class TimeSlotIn(BaseModel):
 
 
 TRACKED = ("date", "nights", "night_no", "time_slot", "room", "guest_name", "adults", "children", "infants",
-           "allergy", "note", "group_id", "entered_at")
+           "adult_coupon", "free_adult", "free_child", "child_coupon", "outside", "allergy", "note", "group_id", "entered_at")
 GROUP_FIELDS = {"grouped", "group_with"}
 
 

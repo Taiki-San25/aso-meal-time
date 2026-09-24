@@ -29,6 +29,15 @@
     { key: 'updated', label: '更新', cls: 'noPrint', firstDir: -1, val: r => (r.deleted ? r.deleted_at : r.updated_at) || '' },
   ];
 
+  // 人数の内訳(フォームでは略称、ホバーで正式名称)
+  const COUNT_FIELDS = [
+    { key: 'adult_coupon', short: '大人CP', full: '大人クーポン(食事付)' },
+    { key: 'free_adult', short: 'フリー大', full: 'フリー大人(生打ち)' },
+    { key: 'free_child', short: 'フリー子', full: 'フリー子供(生打ち)' },
+    { key: 'child_coupon', short: '子供CP', full: '子供クーポン(食事付)' },
+    { key: 'outside', short: '外来', full: '外来' },
+  ];
+
   const params = new URLSearchParams(location.search);
   const state = {
     date: /^\d{4}-\d{2}-\d{2}$/.test(params.get('d') || '') ? params.get('d') : fmtDate(new Date()),
@@ -96,7 +105,7 @@
     return `${y === String(new Date().getFullYear()) ? '' : y + '/'}${+mo}/${+da} ${t.slice(0, 5)}`;
   };
   const FIELD_LABELS = { date: '日付', time_slot: '時間', room: '部屋', guest_name: '代表者名', adults: '大人',
-    children: '子供', infants: '幼児', nights: '泊数', night_no: '何泊目', group_id: 'グループ', entered_at: 'ステータス', allergy: 'アレルギー', note: '備考' };
+    children: '子供', infants: '幼児', ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, c.full])), nights: '泊数', night_no: '何泊目', group_id: 'グループ', entered_at: 'ステータス', allergy: 'アレルギー', note: '備考' };
   const nightsLabel = r => `${r.night_no}泊/${r.nights}泊`;
   const ACTION_LABELS = { create: '登録', update: '変更', delete: '削除', restore: '復元' };
   const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定')
@@ -226,7 +235,8 @@
   function openForm(r) {
     const isNew = !r;
     if (r && r.deleted) return openDeleted(r);
-    r = r || { date: state.date, nights: 1, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '' };
+    r = r || { date: state.date, nights: 1, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '',
+      ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, 0])) };
     const dateLabel = d => `${d.replace(/-/g, '/')}(${dow(d)})`;
     const groups = groupInfo();
     const myGroup = groups[r.group_id];
@@ -267,6 +277,10 @@
           <label>子供<input type="number" name="children" value="${r.children}" min="0" max="99" required></label>
           <label>幼児<input type="number" name="infants" value="${r.infants}" min="0" max="99" required></label>
         </div>
+        <div class="row countRow">
+          ${COUNT_FIELDS.map(c => `<label title="${c.full}"><span class="abbr">${c.short}</span>
+            <input type="number" name="${c.key}" value="${r[c.key] ?? 0}" min="0" max="99" required aria-label="${c.full}"></label>`).join('')}
+        </div>
         <label>アレルギー<textarea name="allergy" maxlength="2000">${esc(r.allergy)}</textarea></label>
         <label>備考<textarea name="note" maxlength="2000">${esc(r.note)}</textarea></label>
         ${groupHtml}
@@ -290,6 +304,7 @@
               time_slot: f.time_slot.value || null,
               room: f.room.value, guest_name: f.guest_name.value,
               adults: +f.adults.value, children: +f.children.value, infants: +f.infants.value,
+              ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, +f[c.key].value])),
               allergy: f.allergy.value, note: f.note.value,
               grouped, group_with: grouped ? +f.group_with.value : null,
             };
@@ -365,6 +380,7 @@
         ${item('部屋番号', r.room)}${item('代表者名', r.guest_name)}
         ${item('泊数', r.nights > 1 ? `${r.nights}泊(${r.night_no}泊目)` : '1泊')}
         ${item('人数', `大人${r.adults} 子供${r.children} 幼児${r.infants}(計${total(r)})`)}
+        ${item('内訳', COUNT_FIELDS.filter(c => r[c.key]).map(c => `${c.full} ${r[c.key]}`).join('　'))}
         ${item('アレルギー', r.allergy)}${item('備考', r.note)}
       </div>${auditHtml(r)}`,
       buttons: [

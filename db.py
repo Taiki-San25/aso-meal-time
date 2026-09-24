@@ -92,6 +92,12 @@ class Reservation(Base):
     adults: Mapped[int] = mapped_column(Integer, default=0)
     children: Mapped[int] = mapped_column(Integer, default=0)
     infants: Mapped[int] = mapped_column(Integer, default=0)
+    # 内訳の人数: 大人クーポン(食事付) / フリー大人(生打ち) / フリー子供(生打ち) / 子供クーポン(食事付) / 外来
+    adult_coupon: Mapped[int] = mapped_column(Integer, default=0)
+    free_adult: Mapped[int] = mapped_column(Integer, default=0)
+    free_child: Mapped[int] = mapped_column(Integer, default=0)
+    child_coupon: Mapped[int] = mapped_column(Integer, default=0)
+    outside: Mapped[int] = mapped_column(Integer, default=0)
     time_slot: Mapped[str | None] = mapped_column(String(16), nullable=True)  # None = 未定
     nights: Mapped[int] = mapped_column(Integer, default=1)    # 泊数
     night_no: Mapped[int] = mapped_column(Integer, default=1)  # 何泊目か
@@ -129,6 +135,11 @@ ADDED_COLUMNS = [
     ("users", "role", "VARCHAR(16) NOT NULL DEFAULT 'front'", "UPDATE users SET role = 'admin' WHERE is_admin"),
     ("reservations", "entered_at", "TIMESTAMP", None),
     ("reservations", "entered_by", "INTEGER", None),
+    ("reservations", "adult_coupon", "INTEGER NOT NULL DEFAULT 0", None),
+    ("reservations", "free_adult", "INTEGER NOT NULL DEFAULT 0", None),
+    ("reservations", "free_child", "INTEGER NOT NULL DEFAULT 0", None),
+    ("reservations", "child_coupon", "INTEGER NOT NULL DEFAULT 0", None),
+    ("reservations", "outside", "INTEGER NOT NULL DEFAULT 0", None),
 ]
 
 
