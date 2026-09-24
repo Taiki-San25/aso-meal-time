@@ -35,6 +35,15 @@
 .ledgerTable tbody tr:hover td{background:#f7fbff}
 .ledgerTable tbody tr.slotBreak td{border-top:2px solid #cfdcea}
 .ledgerTable tbody tr.noSlot td:first-child{background:#fff9ec}
+/* 内訳アイコン */
+.cntIcon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;
+  font-size:13px;flex-shrink:0;box-sizing:border-box;cursor:help}
+.cntIcon.cp{background:#fdf0e1;color:#a55a00;border:1px dashed #d99a4e}
+.cntIcon.free{background:#e6f4ea;color:#2e7d32;border:1px solid #a5d6a7}
+.cntIcon.out{background:#f3e8fb;color:#7b3fa6;border:1px solid #d4b8ea}
+.cntBadges{display:inline-flex;gap:3px;margin-left:6px;vertical-align:-3px}
+.ledgerTable tbody tr.deleted .cntIcon{background:#eee;color:#aaa;border-color:#ccc}
+.abbrWrap{display:inline-flex;align-items:center;gap:4px}
 .ledgerTable td.status{white-space:nowrap}
 .entChk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#555;cursor:pointer;
   padding:3px 8px 3px 6px;border:1px solid #ddd;border-radius:6px;background:#fff}
@@ -112,6 +121,7 @@
   .printTitle{display:block;font-size:16px;margin:0 0 8px}
   .printOnly{display:inline;font-weight:700}
   .ledgerTable .slotSel{display:none}
+  .cntIcon{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .entChk{border:none;padding:0;background:none}
   .entChk input{display:none}
   .entChk:not(:has(input:checked)){visibility:hidden}

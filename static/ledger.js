@@ -30,13 +30,20 @@
   ];
 
   // 人数の内訳(フォームでは略称、ホバーで正式名称)
+  // icon: 大人=人 / 子供=子供の顔 / 外来=ドア、kind: 色分け(cp=クーポン, free=フリー, out=外来)
   const COUNT_FIELDS = [
-    { key: 'adult_coupon', short: '大人CP', full: '大人クーポン(食事付)' },
-    { key: 'free_adult', short: 'フリー大', full: 'フリー大人(生打ち)' },
-    { key: 'child_coupon', short: '子供CP', full: '子供クーポン(食事付)' },
-    { key: 'free_child', short: 'フリー子', full: 'フリー子供(生打ち)' },
-    { key: 'outside', short: '外来', full: '外来' },
+    { key: 'adult_coupon', short: '大人CP', full: '大人クーポン(食事付)', icon: 'ti-user', kind: 'cp' },
+    { key: 'free_adult', short: 'フリー大', full: 'フリー大人(生打ち)', icon: 'ti-user', kind: 'free' },
+    { key: 'child_coupon', short: '子供CP', full: '子供クーポン(食事付)', icon: 'ti-mood-kid', kind: 'cp' },
+    { key: 'free_child', short: 'フリー子', full: 'フリー子供(生打ち)', icon: 'ti-mood-kid', kind: 'free' },
+    { key: 'outside', short: '外来', full: '外来', icon: 'ti-door-enter', kind: 'out' },
   ];
+  const countIcon = c => `<span class="cntIcon ${c.kind}" title="${c.full}" aria-label="${c.full}" role="img"><i class="ti ${c.icon}"></i></span>`;
+  // 数が1以上の内訳項目をアイコンで表示(数は出さない)
+  const countBadges = r => {
+    const icons = COUNT_FIELDS.filter(c => r[c.key] > 0).map(countIcon).join('');
+    return icons ? `<span class="cntBadges">${icons}</span>` : '';
+  };
 
   const params = new URLSearchParams(location.search);
   const state = {
@@ -209,7 +216,7 @@
           <span class="printOnly">${r.time_slot || '未定'}</span>`}</td>
         <td class="status">${statusCell(r)}</td>
         <td class="room">${esc(r.room)}${groupTag(groups[r.group_id])}</td>
-        <td>${esc(r.guest_name)}</td>
+        <td class="guest">${esc(r.guest_name)}${countBadges(r)}</td>
         <td class="nights">${nightsLabel(r)}</td>
         <td class="num">${r.adults}</td><td class="num">${r.children}</td><td class="num">${r.infants}</td>
         <td class="num"><b>${total(r)}</b></td>
@@ -278,7 +285,7 @@
           <label>幼児<input type="number" name="infants" value="${r.infants}" min="0" max="99" required></label>
         </div>
         <div class="row countRow">
-          ${COUNT_FIELDS.map(c => `<label title="${c.full}"><span class="abbr">${c.short}</span>
+          ${COUNT_FIELDS.map(c => `<label title="${c.full}"><span class="abbrWrap">${countIcon(c)}<span class="abbr">${c.short}</span></span>
             <input type="number" name="${c.key}" value="${r[c.key] ?? 0}" min="0" max="99" required aria-label="${c.full}"></label>`).join('')}
         </div>
         <label>アレルギー<textarea name="allergy" maxlength="2000">${esc(r.allergy)}</textarea></label>
