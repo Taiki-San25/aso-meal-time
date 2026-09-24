@@ -9,3 +9,19 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aso-meal-time-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      # 初回起動時に作成する管理者(ユーザーが0人のときのみ使用)。Render のダッシュボードで設定する
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: aso-meal-time-db
+    plan: basic-256mb
+    databaseName: aso_meal_time

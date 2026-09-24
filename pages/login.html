@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ログイン｜阿蘇リゾートグランヴィリオホテル　喫食時間管理表</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  body{background:var(--side-bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+  .loginBox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:28px 24px;width:100%;max-width:360px}
+  .loginBox h1{font-size:17px;margin:0 0 4px;line-height:1.5}
+  .loginBox p{font-size:12px;color:#777;margin:0 0 20px}
+  .loginBox .btn{width:100%;height:40px;font-size:14px;margin-top:4px}
+  .err{color:#c0392b;font-size:13px;min-height:1.2em;margin:0}
+</style>
+</head>
+<body>
+<form class="loginBox form" id="loginForm">
+  <div>
+    <h1>阿蘇リゾートグランヴィリオホテル<br>喫食時間管理表</h1>
+    <p>ログインIDとパスワードを入力してください</p>
+  </div>
+  <label>ログインID<input type="text" name="username" required autocomplete="username" autocapitalize="off"></label>
+  <label>パスワード<input type="password" name="password" required autocomplete="current-password"></label>
+  <p class="err" id="err" role="alert"></p>
+  <button class="btn primary" type="submit">ログイン</button>
+</form>
+<script>
+  const f = document.getElementById('loginForm');
+  f.username.focus();
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = f.querySelector('button');
+    btn.disabled = true;
+    document.getElementById('err').textContent = '';
+    try {
+      const r = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: f.username.value, password: f.password.value })
+      });
+      if (r.ok) { location.href = '/dinner'; return; }
+      const d = await r.json().catch(() => ({}));
+      document.getElementById('err').textContent = typeof d.detail === 'string' ? d.detail : 'ログインに失敗しました';
+    } catch (err) {
+      document.getElementById('err').textContent = '通信エラーが発生しました';
+    }
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>

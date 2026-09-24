@@ -1,0 +1,90 @@
+/* ledger.css — 喫食時間管理表 */
+.ledgerBar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.ledgerBar .dateNav{display:flex;align-items:center;gap:4px}
+.ledgerBar #ldDate{width:150px}
+.ledgerBar #ldSearch{width:220px;flex:0 1 220px}
+.ledgerBar #ldSort{width:100px}
+.ledgerBar .barRight{display:flex;gap:8px;margin-left:auto}
+.dow{font-size:13px;color:#555;min-width:2.5em}
+.dow.sun{color:#c0392b}
+.dow.sat{color:var(--accent)}
+
+.summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:12px}
+.sumCard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+.sumCard .sumLabel{font-size:12px;color:#555;font-weight:500}
+.sumCard .sumMain{font-size:13px;margin-top:2px}
+.sumCard .sumMain b{font-size:20px;font-variant-numeric:tabular-nums}
+.sumCard .sumMain span{color:#777;font-size:12px;margin-left:4px}
+.sumCard .sumSub{font-size:11px;color:#888}
+.sumCard.zero{opacity:.55}
+.sumCard.unset{border-color:#f0c36d;background:#fff9ec}
+.sumCard.total{border-color:#b8d4ef;background:var(--accent-bg)}
+.sumCard.total .sumLabel{color:var(--accent)}
+
+.ledgerTable tbody tr{cursor:pointer}
+.ledgerTable tbody tr:hover td{background:#f7fbff}
+.ledgerTable tbody tr.slotBreak td{border-top:2px solid #cfdcea}
+.ledgerTable tbody tr.noSlot td:first-child{background:#fff9ec}
+.ledgerTable td.room{font-weight:700;white-space:nowrap}
+.ledgerTable td{white-space:nowrap}
+.ledgerTable td.empty{white-space:normal}
+.ledgerTable td.note,.ledgerTable td.allergyCell{white-space:pre-wrap;min-width:160px}
+.ledgerTable td.upd{color:#888;font-size:12px;white-space:nowrap}
+.ledgerTable .slotSel{width:84px;height:30px;padding:0 6px;font-size:13px}
+.allergy{display:inline-flex;gap:4px;color:#c0392b;font-weight:500;white-space:pre-wrap}
+.allergy i{font-size:14px;margin-top:2px}
+.printOnly,.printTitle{display:none}
+.delToggle{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap}
+
+/* 削除済み(グレーアウト) */
+.ledgerTable tbody tr.deleted td{color:#aaa;background:#f6f6f6}
+.ledgerTable tbody tr.deleted td.room{text-decoration:line-through}
+.ledgerTable tbody tr.deleted .allergy{color:#bbb}
+.ledgerTable tbody tr.deleted:hover td{background:#efefef}
+.delBadge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#ddd;color:#666}
+
+/* 記録・変更履歴 */
+.audit{margin-top:14px;padding-top:10px;border-top:1px solid #eee;font-size:12px;color:#555;display:grid;gap:2px}
+.audit span{display:inline-block;width:5.5em;color:#999}
+.history{margin-top:8px;font-size:12px}
+.history summary{cursor:pointer;color:var(--accent);padding:4px 0}
+.historyList{max-height:260px;overflow-y:auto;border:1px solid #eee;border-radius:6px;padding:4px 10px;margin-top:4px}
+.hItem{padding:6px 0;border-bottom:1px solid #f0f0f0}
+.hItem:last-child{border-bottom:none}
+.hHead{color:#555}
+.hAct{display:inline-block;min-width:3.2em;margin-right:6px;padding:0 6px;border-radius:4px;text-align:center;
+  background:var(--accent-bg);color:var(--accent);font-weight:500}
+.hi-create .hAct{background:#e8f5e9;color:#2e7d32}
+.hi-delete .hAct{background:#fdecea;color:#c0392b}
+.hi-restore .hAct{background:#fff4e0;color:#b26a00}
+.hItem ul{margin:3px 0 0;padding-left:1.4em;color:#333;white-space:pre-wrap;word-break:break-word}
+
+/* 削除済み詳細(閲覧のみ) */
+.readonly{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 16px}
+.roItem span{display:block;font-size:12px;color:#888}
+.roItem div{font-size:14px;white-space:pre-wrap;word-break:break-word}
+
+@media (max-width:640px){
+  .ledgerBar .dateNav{width:100%}
+  .ledgerBar #ldDate{flex:1;width:auto}
+  .ledgerBar #ldSearch{flex:1 1 140px;width:auto}
+  .ledgerBar .barRight{margin-left:0}
+  .ledgerBar [data-act=print]{display:none}
+  .summary{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+}
+
+@media print{
+  @page{size:A4 landscape;margin:10mm}
+  .printTitle{display:block;font-size:16px;margin:0 0 8px}
+  .printOnly{display:inline;font-weight:700}
+  .ledgerTable .slotSel{display:none}
+  .ledgerTable tbody tr.deleted{display:none}
+  .ledgerTable tbody tr:hover td{background:none}
+  .ledgerTable tbody tr.noSlot td:first-child{background:none}
+  .summary{grid-template-columns:repeat(8,1fr);gap:4px}
+  .sumCard{padding:4px 6px}
+  .sumCard .sumMain b{font-size:15px}
+  table.grid{font-size:11px}
+  table.grid th,table.grid td{padding:4px 6px}
+  table.grid tr{break-inside:avoid}
+}

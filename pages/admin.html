@@ -6,10 +6,146 @@
 <title>管理者ページ｜阿蘇リゾートグランヴィリオホテル　喫食時間管理表</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.44.0/tabler-icons.min.css">
 <link rel="stylesheet" href="/static/common.css">
+<style>
+  .section{margin-bottom:28px;max-width:900px}
+  .section h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .section h2 .btn{margin-left:auto}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;background:#f0e6fb;color:#6a3fa0}
+  .tag.off{background:#eee;color:#888}
+  tr.inactive td{color:#aaa}
+  .slotGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+  .slotBox{border:1px solid var(--line);border-radius:8px;padding:12px}
+  .slotBox h3{font-size:13px;margin:0 0 8px;display:flex;align-items:center;gap:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;min-height:30px;margin-bottom:10px}
+  .chip{display:inline-flex;align-items:center;gap:2px;padding:0 4px 0 10px;height:28px;border-radius:999px;
+    background:var(--accent-bg);color:var(--accent);font-size:13px;font-variant-numeric:tabular-nums}
+  .chip button{border:none;background:transparent;color:inherit;cursor:pointer;padding:0 4px;display:flex}
+  .slotAdd{display:flex;gap:6px}
+  .slotAdd input{width:120px;flex:none}
+  .slotAdd .btn.primary{margin-left:auto}
+</style>
 </head>
 <body>
-<h1 style="font-size:18px;margin:0 0 12px">管理者ページ</h1>
-<p style="color:#666;font-size:13px">（台帳本体はこれから実装）</p>
+<div class="pageHead"><h1>管理者ページ</h1></div>
+
+<section class="section">
+  <h2><i class="ti ti-users"></i>ユーザー管理<button class="btn primary" id="addUser"><i class="ti ti-user-plus"></i>ユーザー追加</button></h2>
+  <div class="tableWrap"><table class="grid">
+    <thead><tr><th>ログインID</th><th>表示名</th><th>権限</th><th>状態</th><th></th></tr></thead>
+    <tbody id="userBody"><tr><td colspan="5" class="empty">読み込み中…</td></tr></tbody>
+  </table></div>
+</section>
+
+<section class="section">
+  <h2><i class="ti ti-clock"></i>時間枠設定</h2>
+  <div class="slotGrid">
+    <div class="slotBox" data-meal="dinner"><h3><i class="ti ti-moon"></i>夕食</h3></div>
+    <div class="slotBox" data-meal="breakfast"><h3><i class="ti ti-sun"></i>朝食</h3></div>
+  </div>
+</section>
+
 <script src="/static/common.js"></script>
+<script>
+(function () {
+  const { esc, api, toast, modal } = AMT;
+  let users = [];
+  let meId = null;
+
+  // ---------- ユーザー ----------
+  async function loadUsers() {
+    users = await api('/api/users');
+    document.getElementById('userBody').innerHTML = users.map(u => `
+      <tr class="${u.active ? '' : 'inactive'}">
+        <td>${esc(u.username)}</td>
+        <td>${esc(u.display_name)}${u.id === meId ? ' <span class="muted">(自分)</span>' : ''}</td>
+        <td>${u.is_admin ? '<span class="tag">管理者</span>' : '一般'}</td>
+        <td>${u.active ? '有効' : '<span class="tag off">無効</span>'}</td>
+        <td style="text-align:right"><button class="btn" data-edit="${u.id}"><i class="ti ti-pencil"></i>編集</button></td>
+      </tr>`).join('');
+  }
+
+  function userForm(u) {
+    const isNew = !u;
+    const self = u && u.id === meId;
+    const m = modal({
+      title: isNew ? 'ユーザー追加' : `ユーザー編集(${u.username})`,
+      body: `<form class="form">
+        ${isNew ? `<label>ログインID(半角英数字・記号 _ . -)<input type="text" name="username" required pattern="[A-Za-z0-9_.\\-]{2,64}" autocapitalize="off"></label>` : ''}
+        <label>表示名<input type="text" name="display_name" required maxlength="64" value="${esc(u ? u.display_name : '')}"></label>
+        <label>${isNew ? 'パスワード(8文字以上)' : '新しいパスワード(変更する場合のみ・8文字以上)'}
+          <input type="password" name="password" minlength="8" ${isNew ? 'required' : ''} autocomplete="new-password"></label>
+        <label class="check"><input type="checkbox" name="is_admin" ${u && u.is_admin ? 'checked' : ''} ${self ? 'disabled' : ''}>管理者権限</label>
+        ${isNew ? '' : `<label class="check"><input type="checkbox" name="active" ${u.active ? 'checked' : ''} ${self ? 'disabled' : ''}>有効(外すとログインできなくなります)</label>`}
+      </form>`,
+      buttons: [{ label: 'キャンセル' }, {
+        label: isNew ? '追加する' : '保存する', primary: true, onClick: async () => {
+          const f = m.querySelector('form');
+          if (!f.reportValidity()) return false;
+          const body = { display_name: f.display_name.value, is_admin: f.is_admin.checked };
+          if (isNew) {
+            body.username = f.username.value.trim();
+            body.password = f.password.value;
+            await api('/api/users', { method: 'POST', body });
+          } else {
+            if (f.password.value) body.password = f.password.value;
+            if (!self) body.active = f.active.checked;
+            else delete body.is_admin;
+            await api(`/api/users/${u.id}`, { method: 'PUT', body });
+          }
+          toast(isNew ? 'ユーザーを追加しました' : '保存しました');
+          await loadUsers();
+        }
+      }]
+    });
+  }
+
+  document.getElementById('addUser').addEventListener('click', () => userForm(null));
+  document.getElementById('userBody').addEventListener('click', e => {
+    const id = e.target.closest('[data-edit]')?.dataset.edit;
+    if (id) userForm(users.find(u => u.id === +id));
+  });
+
+  // ---------- 時間枠 ----------
+  document.querySelectorAll('.slotBox').forEach(box => {
+    const meal = box.dataset.meal;
+    let slots = [];
+    box.insertAdjacentHTML('beforeend', `
+      <div class="chips"></div>
+      <div class="slotAdd">
+        <input type="time" step="300" aria-label="追加する時刻">
+        <button class="btn" data-add><i class="ti ti-plus"></i>追加</button>
+        <button class="btn primary" data-save>保存</button>
+      </div>`);
+    const chips = box.querySelector('.chips');
+    const input = box.querySelector('input');
+    const draw = () => {
+      chips.innerHTML = slots.length
+        ? slots.map(s => `<span class="chip">${s}<button data-del="${s}" aria-label="${s} を削除"><i class="ti ti-x"></i></button></span>`).join('')
+        : '<span class="muted" style="font-size:13px">時間枠がありません</span>';
+    };
+    const add = () => {
+      const v = input.value;
+      if (!v) return;
+      if (!slots.includes(v)) slots = [...slots, v].sort();
+      input.value = '';
+      draw();
+    };
+    box.querySelector('[data-add]').addEventListener('click', add);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    chips.addEventListener('click', e => {
+      const s = e.target.closest('[data-del]')?.dataset.del;
+      if (s) { slots = slots.filter(x => x !== s); draw(); }
+    });
+    box.querySelector('[data-save]').addEventListener('click', async () => {
+      slots = await api(`/api/slots/${meal}`, { method: 'PUT', body: { slots } });
+      draw();
+      toast(`${meal === 'dinner' ? '夕食' : '朝食'}の時間枠を保存しました`);
+    });
+    api(`/api/slots/${meal}`).then(s => { slots = s; draw(); }).catch(() => {});
+  });
+
+  AMT.me.then(me => { meId = me.id; return loadUsers(); }).catch(() => {});
+})();
+</script>
 </body>
 </html>

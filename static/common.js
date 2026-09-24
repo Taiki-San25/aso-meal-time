@@ -1,3 +1,81 @@
+/* 共通ヘルパー: API・モーダル・トースト */
+window.AMT = (function () {
+  const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function api(url, opts = {}) {
+    const init = { method: opts.method || 'GET', headers: {} };
+    if (opts.body !== undefined) {
+      init.headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(opts.body);
+    }
+    const r = await fetch(url, init);
+    if (r.status === 401 && url !== '/api/login') { location.href = '/login'; throw new Error('401'); }
+    const data = await r.json().catch(() => null);
+    if (!r.ok) {
+      let msg = '通信エラーが発生しました';
+      if (data && typeof data.detail === 'string') msg = data.detail;
+      else if (data && Array.isArray(data.detail)) msg = data.detail.map(d => String(d.msg).replace(/^Value error, /, '')).join(' / ');
+      toast(msg, true);
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  let toastTimer;
+  function toast(msg, isError) {
+    let el = document.getElementById('toast');
+    if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.textContent = msg;
+    el.className = 'show' + (isError ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+  }
+
+  // buttons: [{label, primary, danger, left, onClick}] — onClick が false を返すか例外なら閉じない
+  // onClose: 閉じ方に関わらず閉じたときに1回呼ばれる
+  function modal({ title, body, buttons = [], wide, onClose }) {
+    const wrap = document.createElement('div');
+    wrap.className = 'modalWrap';
+    wrap.innerHTML = `<div class="modal${wide ? ' wide' : ''}" role="dialog" aria-modal="true">
+      <div class="modalHead"><h2>${esc(title)}</h2><button class="iconBtn" data-close aria-label="閉じる"><i class="ti ti-x"></i></button></div>
+      <div class="modalBody">${body}</div>
+      <div class="modalFoot"></div></div>`;
+    const foot = wrap.querySelector('.modalFoot');
+    const close = () => {
+      if (!wrap.isConnected) return;
+      wrap.remove(); document.removeEventListener('keydown', onKey);
+      if (onClose) onClose();
+    };
+    const isTop = () => [...document.querySelectorAll('.modalWrap')].pop() === wrap;
+    const onKey = e => { if (e.key === 'Escape' && isTop()) close(); };
+    buttons.forEach(b => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : '');
+      if (b.left) btn.style.marginRight = 'auto';
+      btn.textContent = b.label;
+      btn.addEventListener('click', async () => {
+        if (!b.onClick) return close();
+        btn.disabled = true;
+        try { if ((await b.onClick()) !== false) close(); } catch (e) { /* toast 済み */ }
+        btn.disabled = false;
+      });
+      foot.appendChild(btn);
+    });
+    wrap.querySelector('[data-close]').addEventListener('click', close);
+    wrap.addEventListener('mousedown', e => { if (e.target === wrap) close(); });
+    document.addEventListener('keydown', onKey);
+    const form = wrap.querySelector('form');
+    if (form) form.addEventListener('submit', e => { e.preventDefault(); foot.querySelector('.primary')?.click(); });
+    document.body.appendChild(wrap);
+    wrap.querySelector('input,select,textarea')?.focus();
+    wrap.close = close;
+    return wrap;
+  }
+
+  return { esc, api, toast, modal, isModalOpen: () => !!document.querySelector('.modalWrap') };
+})();
+
 /* common.js — 上部バー・サイドバーを生成し、body直下の要素を #mainContent に移す */
 (function () {
   const CONFIG = {
@@ -5,6 +83,7 @@
     favicon: null,          // 未定: 決まったら '/static/favicon.png' などに差し替え
     ticker: '',             // お知らせ(空なら非表示)
     topButtons: [
+      { label: 'パスワード変更', icon: 'ti-key', type: 'normal', href: '#password' },
       { label: 'ログアウト', icon: 'ti-logout', type: 'normal', href: '/logout' }
     ],
     mainMenu: [
@@ -13,7 +92,7 @@
     ],
     adminMenu: {
       heading: '管理者メニュー',
-      items: [{ label: '管理者ページ(未定)', icon: 'ti-settings', href: '/admin' }]
+      items: [{ label: '管理者ページ', icon: 'ti-settings', href: '/admin' }]
     }
   };
   const LS_KEY = 'sidebarCollapsed';
@@ -74,13 +153,19 @@
 
   document.body.prepend(topbar, sidebar, backdrop, main);
 
-  // ユーザー名
+  // ユーザー名・管理者メニュー
   const setUser = name => {
     sidebar.querySelector('.avatar').textContent = name.charAt(0);
     sidebar.querySelector('.userName').textContent = name;
   };
   setUser('…');
-  fetch('/api/me').then(r => r.ok ? r.json() : null).then(d => d && d.name && setUser(d.name)).catch(() => {});
+  const adminEls = [document.getElementById('adminHeading'), document.getElementById('adminSection')];
+  adminEls.forEach(el => { el.hidden = true; });
+  AMT.me = AMT.api('/api/me').then(d => {
+    setUser(d.name);
+    adminEls.forEach(el => { el.hidden = !d.is_admin; });
+    return d;
+  });
 
   // 格納
   const collapseBtn = document.getElementById('collapseBtn');
@@ -104,4 +189,26 @@
   // ハンバーガー(640px以下)
   document.getElementById('hamburger').addEventListener('click', () => document.body.classList.toggle('drawerOpen'));
   backdrop.addEventListener('click', () => document.body.classList.remove('drawerOpen'));
+
+  // パスワード変更
+  topbar.querySelector('a[href="#password"]').addEventListener('click', e => {
+    e.preventDefault();
+    const m = AMT.modal({
+      title: 'パスワード変更',
+      body: `<form class="form">
+        <label>現在のパスワード<input type="password" name="current" required autocomplete="current-password"></label>
+        <label>新しいパスワード(8文字以上)<input type="password" name="new" required minlength="8" autocomplete="new-password"></label>
+        <label>新しいパスワード(確認)<input type="password" name="confirm" required minlength="8" autocomplete="new-password"></label>
+      </form>`,
+      buttons: [{ label: 'キャンセル' }, {
+        label: '変更する', primary: true, onClick: async () => {
+          const f = m.querySelector('form');
+          if (!f.reportValidity()) return false;
+          if (f.new.value !== f.confirm.value) { AMT.toast('確認用パスワードが一致しません', true); return false; }
+          await AMT.api('/api/me/password', { method: 'POST', body: { current: f.current.value, new: f.new.value } });
+          AMT.toast('パスワードを変更しました');
+        }
+      }]
+    });
+  });
 })();

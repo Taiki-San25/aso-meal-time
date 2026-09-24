@@ -1,0 +1,329 @@
+/* ledger.js — 喫食時間管理表(夕食・朝食共通)。#ledger[data-meal] に描画する */
+(function () {
+  const root = document.getElementById('ledger');
+  const MEAL = root.dataset.meal;
+  const { esc, api, toast, modal } = AMT;
+  const REFRESH_MS = 30000;
+  const UNSET = '';  // 時間未定
+
+  const pad = n => String(n).padStart(2, '0');
+  const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return fmtDate(d); };
+  const WEEK = '日月火水木金土';
+  const dow = s => WEEK[new Date(s + 'T00:00:00').getDay()];
+
+  const params = new URLSearchParams(location.search);
+  const state = {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(params.get('d') || '') ? params.get('d') : fmtDate(new Date()),
+    slots: [],
+    rows: [],
+    q: '',
+    sort: 'time',
+    showDeleted: false,
+  };
+
+  root.innerHTML = `
+    <div class="ledgerBar noPrint">
+      <div class="dateNav">
+        <button class="iconBtn" data-act="prev" aria-label="前日"><i class="ti ti-chevron-left"></i></button>
+        <input type="date" id="ldDate" aria-label="日付">
+        <span class="dow" id="ldDow"></span>
+        <button class="iconBtn" data-act="next" aria-label="翌日"><i class="ti ti-chevron-right"></i></button>
+        <button class="btn" data-act="today">今日</button>
+      </div>
+      <input type="search" id="ldSearch" placeholder="部屋・名前・備考で検索" aria-label="検索">
+      <select id="ldSort" aria-label="並び順">
+        <option value="time">時間順</option>
+        <option value="room">部屋順</option>
+      </select>
+      <label class="delToggle"><input type="checkbox" id="ldShowDeleted">削除済みも表示</label>
+      <div class="barRight">
+        <button class="btn" data-act="print"><i class="ti ti-printer"></i>印刷</button>
+        <button class="btn primary" data-act="add"><i class="ti ti-plus"></i>追加</button>
+      </div>
+    </div>
+    <h2 class="printTitle" id="ldPrintTitle"></h2>
+    <div class="summary" id="ldSummary"></div>
+    <div class="tableWrap"><table class="grid ledgerTable">
+      <thead><tr>
+        <th>時間</th><th>部屋</th><th>代表者名</th>
+        <th class="num">大人</th><th class="num">子供</th><th class="num">幼児</th><th class="num">計</th>
+        <th>アレルギー</th><th>備考</th><th class="noPrint">更新</th>
+      </tr></thead>
+      <tbody id="ldBody"></tbody>
+    </table></div>`;
+
+  const $ = id => document.getElementById(id);
+  const dateInput = $('ldDate');
+
+  // ---------- データ ----------
+  async function loadSlots() {
+    state.slots = await api(`/api/slots/${MEAL}`);
+  }
+
+  async function loadRows() {
+    state.rows = await api(`/api/${MEAL}/reservations?d=${state.date}${state.showDeleted ? '&include_deleted=true' : ''}`);
+    render();
+  }
+
+  function setDate(d) {
+    state.date = d;
+    const u = new URL(location.href);
+    u.searchParams.set('d', d);
+    history.replaceState(null, '', u);
+    loadRows().catch(() => {});
+  }
+
+  // ---------- 描画 ----------
+  const total = r => r.adults + r.children + r.infants;
+  const active = () => state.rows.filter(r => !r.deleted);
+  // "2026-09-24T18:05:12" → "9/24 18:05"(今年以外は年も表示)
+  const fmtTs = ts => {
+    if (!ts) return '';
+    const [d, t] = ts.split('T');
+    const [y, mo, da] = d.split('-');
+    return `${y === String(new Date().getFullYear()) ? '' : y + '/'}${+mo}/${+da} ${t.slice(0, 5)}`;
+  };
+  const FIELD_LABELS = { date: '日付', time_slot: '時間', room: '部屋', guest_name: '代表者名', adults: '大人',
+    children: '子供', infants: '幼児', allergy: 'アレルギー', note: '備考' };
+  const ACTION_LABELS = { create: '登録', update: '変更', delete: '削除', restore: '復元' };
+  const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定') : (v === '' || v === null ? '(空欄)' : String(v));
+
+  function visibleRows() {
+    const q = state.q.trim().toLowerCase();
+    let rows = state.rows;
+    if (q) rows = rows.filter(r => [r.room, r.guest_name, r.allergy, r.note].some(v => v.toLowerCase().includes(q)));
+    const byRoom = (a, b) => a.room.localeCompare(b.room, 'ja', { numeric: true });
+    return [...rows].sort(state.sort === 'time'
+      ? (a, b) => (a.time_slot || '99:99').localeCompare(b.time_slot || '99:99') || byRoom(a, b)
+      : byRoom);
+  }
+
+  // 登録済みの時刻が枠設定に無い場合も選択肢に残す
+  function slotOptions(current) {
+    const list = [...state.slots];
+    if (current && !list.includes(current)) list.push(current);
+    list.sort();
+    return `<option value="${UNSET}">未定</option>` +
+      list.map(s => `<option value="${s}"${s === current ? ' selected' : ''}>${s}</option>`).join('');
+  }
+
+  function renderSummary() {
+    const agg = {};
+    const add = (k, r) => {
+      const a = agg[k] || (agg[k] = { n: 0, adults: 0, children: 0, infants: 0 });
+      a.n++; a.adults += r.adults; a.children += r.children; a.infants += r.infants;
+    };
+    active().forEach(r => { add(r.time_slot || UNSET, r); add('*', r); });
+    const keys = [...new Set([...state.slots, ...Object.keys(agg).filter(k => k !== '*' && k !== UNSET)])].sort();
+    if (agg[UNSET]) keys.push(UNSET);
+    const card = (label, a, cls = '') => {
+      a = a || { n: 0, adults: 0, children: 0, infants: 0 };
+      const t = a.adults + a.children + a.infants;
+      return `<div class="sumCard ${cls}${a.n ? '' : ' zero'}">
+        <div class="sumLabel">${esc(label)}</div>
+        <div class="sumMain"><b>${t}</b>名 <span>${a.n}組</span></div>
+        <div class="sumSub">大${a.adults} 子${a.children} 幼${a.infants}</div></div>`;
+    };
+    $('ldSummary').innerHTML =
+      keys.map(k => card(k || '未定', agg[k], k ? '' : 'unset')).join('') + card('合計', agg['*'], 'total');
+  }
+
+  function render() {
+    dateInput.value = state.date;
+    $('ldDow').textContent = `(${dow(state.date)})`;
+    $('ldDow').className = 'dow' + ({ 日: ' sun', 土: ' sat' }[dow(state.date)] || '');
+    $('ldPrintTitle').textContent = `${MEAL === 'dinner' ? '夕食' : '朝食'}時間管理表　${state.date.replace(/-/g, '/')}(${dow(state.date)})`;
+    renderSummary();
+
+    const rows = visibleRows();
+    const tbody = $('ldBody');
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="10" class="empty">${state.rows.length ? '該当する予約はありません' : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
+      return;
+    }
+    let prevSlot = null;
+    tbody.innerHTML = rows.map(r => {
+      const brk = state.sort === 'time' && prevSlot !== null && prevSlot !== (r.time_slot || UNSET);
+      prevSlot = r.time_slot || UNSET;
+      const cls = [brk && 'slotBreak', !r.time_slot && !r.deleted && 'noSlot', r.deleted && 'deleted'].filter(Boolean).join(' ');
+      return `<tr data-id="${r.id}" class="${cls}">
+        <td>${r.deleted
+          ? `<span class="delBadge">削除済</span> ${r.time_slot || '未定'}`
+          : `<select class="slotSel" aria-label="時間">${slotOptions(r.time_slot)}</select>
+          <span class="printOnly">${r.time_slot || '未定'}</span>`}</td>
+        <td class="room">${esc(r.room)}</td>
+        <td>${esc(r.guest_name)}</td>
+        <td class="num">${r.adults}</td><td class="num">${r.children}</td><td class="num">${r.infants}</td>
+        <td class="num"><b>${total(r)}</b></td>
+        <td class="allergyCell">${r.allergy ? `<span class="allergy"><i class="ti ti-alert-triangle"></i>${esc(r.allergy)}</span>` : ''}</td>
+        <td class="note">${esc(r.note)}</td>
+        <td class="noPrint upd">${r.deleted
+          ? `削除 ${fmtTs(r.deleted_at)}<br>${esc(r.deleted_by)}`
+          : `${fmtTs(r.updated_at)}<br>${esc(r.updated_by)}`}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ---------- 編集 ----------
+  function openForm(r) {
+    const isNew = !r;
+    if (r && r.deleted) return openDeleted(r);
+    r = r || { date: state.date, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '' };
+    const m = modal({
+      title: isNew ? '予約を追加' : `予約を編集(${r.room})`,
+      wide: true,
+      body: `<form class="form">
+        <div class="row">
+          <label>日付<input type="date" name="date" value="${r.date}" required></label>
+          <label>時間<select name="time_slot">${slotOptions(r.time_slot)}</select></label>
+        </div>
+        <div class="row">
+          <label>部屋番号<input type="text" name="room" value="${esc(r.room)}" required maxlength="32"></label>
+          <label>代表者名<input type="text" name="guest_name" value="${esc(r.guest_name)}" maxlength="128"></label>
+        </div>
+        <div class="row">
+          <label>大人<input type="number" name="adults" value="${r.adults}" min="0" max="99" required></label>
+          <label>子供<input type="number" name="children" value="${r.children}" min="0" max="99" required></label>
+          <label>幼児<input type="number" name="infants" value="${r.infants}" min="0" max="99" required></label>
+        </div>
+        <label>アレルギー<textarea name="allergy" maxlength="2000">${esc(r.allergy)}</textarea></label>
+        <label>備考<textarea name="note" maxlength="2000">${esc(r.note)}</textarea></label>
+      </form>
+      ${isNew ? '' : auditHtml(r)}`,
+      buttons: [
+        ...(isNew ? [] : [{ label: '削除', danger: true, left: true, onClick: () => confirmDelete(r, m) }]),
+        { label: 'キャンセル' },
+        {
+          label: isNew ? '追加する' : '保存する', primary: true, onClick: async () => {
+            const f = m.querySelector('form');
+            if (!f.reportValidity()) return false;
+            const body = {
+              date: f.date.value, time_slot: f.time_slot.value || null,
+              room: f.room.value, guest_name: f.guest_name.value,
+              adults: +f.adults.value, children: +f.children.value, infants: +f.infants.value,
+              allergy: f.allergy.value, note: f.note.value,
+            };
+            await api(isNew ? `/api/${MEAL}/reservations` : `/api/${MEAL}/reservations/${r.id}`,
+              { method: isNew ? 'POST' : 'PUT', body });
+            toast(body.date !== state.date ? `${body.date.replace(/-/g, '/')} の台帳に保存しました` : (isNew ? '追加しました' : '保存しました'));
+            await loadRows();
+          }
+        }
+      ]
+    });
+    if (!isNew) loadHistory(r, m);
+  }
+
+  // 登録・更新・削除の記録と変更履歴
+  function auditHtml(r) {
+    const line = (label, ts, by) => ts ? `<div><span>${label}</span>${fmtTs(ts)}　${esc(by) || '-'}</div>` : '';
+    return `<div class="audit">
+      ${line('登録', r.created_at, r.created_by)}
+      ${line('最終更新', r.updated_at, r.updated_by)}
+      ${line('削除', r.deleted_at, r.deleted_by)}
+    </div>
+    <details class="history"><summary>変更履歴</summary><div class="historyList">読み込み中…</div></details>`;
+  }
+
+  async function loadHistory(r, m) {
+    const box = m.querySelector('.historyList');
+    try {
+      const hist = await api(`/api/${MEAL}/reservations/${r.id}/history`);
+      box.innerHTML = hist.map(h => {
+        // 登録時は入力された項目だけ表示
+        const entries = Object.entries(h.changes || {})
+          .filter(([, [, v]]) => h.action !== 'create' || (v !== '' && v !== null && v !== 0));
+        const detail = entries.map(([f, [a, b]]) => `<li><b>${FIELD_LABELS[f] || esc(f)}</b>: ${h.action === 'create'
+          ? esc(fmtVal(f, b))
+          : `${esc(fmtVal(f, a))} → ${esc(fmtVal(f, b))}`}</li>`).join('');
+        return `<div class="hItem hi-${h.action}">
+          <div class="hHead"><span class="hAct">${ACTION_LABELS[h.action] || esc(h.action)}</span>${fmtTs(h.changed_at)}　${esc(h.changed_by) || '-'}</div>
+          ${detail ? `<ul>${detail}</ul>` : ''}</div>`;
+      }).join('') || '<p class="muted">履歴はありません</p>';
+    } catch (e) { box.textContent = '履歴を読み込めませんでした'; }
+  }
+
+  // 削除済み予約: 閲覧のみ(復元可)
+  function openDeleted(r) {
+    const item = (label, v) => `<div class="roItem"><span>${label}</span><div>${esc(v) || '<span class="muted">-</span>'}</div></div>`;
+    const m = modal({
+      title: `削除済みの予約(${r.room})`,
+      wide: true,
+      body: `<div class="readonly">
+        ${item('日付', r.date.replace(/-/g, '/'))}${item('時間', r.time_slot || '未定')}
+        ${item('部屋番号', r.room)}${item('代表者名', r.guest_name)}
+        ${item('人数', `大人${r.adults} 子供${r.children} 幼児${r.infants}(計${total(r)})`)}
+        ${item('アレルギー', r.allergy)}${item('備考', r.note)}
+      </div>${auditHtml(r)}`,
+      buttons: [
+        { label: '復元する', left: true, onClick: async () => {
+          await api(`/api/${MEAL}/reservations/${r.id}/restore`, { method: 'POST' });
+          toast('復元しました');
+          await loadRows();
+        } },
+        { label: '閉じる', primary: true },
+      ]
+    });
+    loadHistory(r, m);
+  }
+
+  async function confirmDelete(r, parent) {
+    const ok = await new Promise(resolve => {
+      let yes = false;
+      modal({
+        title: '予約を削除',
+        body: `<p style="margin:0">${esc(r.room)} ${esc(r.guest_name)} 様の予約を削除します。よろしいですか？</p>
+          <p class="muted" style="margin:8px 0 0;font-size:12px">削除した予約は「削除済みも表示」から閲覧・復元できます。</p>`,
+        buttons: [{ label: 'キャンセル' }, { label: '削除する', danger: true, onClick: () => { yes = true; } }],
+        onClose: () => resolve(yes),
+      });
+    });
+    if (!ok) return false;
+    await api(`/api/${MEAL}/reservations/${r.id}`, { method: 'DELETE' });
+    toast('削除しました');
+    parent.close();
+    await loadRows();
+    return false;
+  }
+
+  // ---------- イベント ----------
+  root.addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'prev') setDate(addDays(state.date, -1));
+    else if (act === 'next') setDate(addDays(state.date, 1));
+    else if (act === 'today') setDate(fmtDate(new Date()));
+    else if (act === 'print') window.print();
+    else if (act === 'add') openForm(null);
+  });
+  dateInput.addEventListener('change', () => { if (dateInput.value) setDate(dateInput.value); });
+  $('ldSearch').addEventListener('input', e => { state.q = e.target.value; render(); });
+  $('ldSort').addEventListener('change', e => { state.sort = e.target.value; render(); });
+  $('ldShowDeleted').addEventListener('change', e => { state.showDeleted = e.target.checked; loadRows().catch(() => {}); });
+
+  const tbody = $('ldBody');
+  tbody.addEventListener('change', async e => {
+    if (!e.target.classList.contains('slotSel')) return;
+    const id = +e.target.closest('tr').dataset.id;
+    try {
+      const updated = await api(`/api/${MEAL}/reservations/${id}/time`, { method: 'PATCH', body: { time_slot: e.target.value || null } });
+      state.rows = state.rows.map(r => r.id === id ? updated : r);
+      toast(`${updated.room} を ${updated.time_slot || '未定'} に変更しました`);
+    } catch (err) { /* toast 済み */ }
+    render();
+  });
+  tbody.addEventListener('click', e => {
+    if (e.target.closest('select')) return;
+    const tr = e.target.closest('tr[data-id]');
+    if (tr) openForm(state.rows.find(r => r.id === +tr.dataset.id));
+  });
+
+  // 他端末の更新を反映(編集中・入力中は止める)
+  setInterval(() => {
+    if (document.hidden || AMT.isModalOpen() || document.activeElement?.classList.contains('slotSel')) return;
+    loadRows().catch(() => {});
+  }, REFRESH_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !AMT.isModalOpen()) loadRows().catch(() => {}); });
+
+  loadSlots().then(loadRows).catch(() => {});
+})();
