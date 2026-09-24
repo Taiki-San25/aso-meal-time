@@ -2,13 +2,15 @@ import os
 import re
 import secrets
 import uuid
+from io import BytesIO
+from urllib.parse import quote
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
@@ -63,6 +65,15 @@ app.add_middleware(
     https_only=IS_PROD or ON_RENDER,
 )
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
+
+
+@app.middleware("http")
+async def no_stale_assets(request: Request, call_next):
+    """デプロイ後に古い画面(JS/CSS/HTML)が残らないよう、毎回サーバーに更新を確認させる(未変更なら304)"""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
 
 
 # ---------- 共通依存 ----------
@@ -576,8 +587,111 @@ def chat_unread(user: User = Depends(current_user), db: Session = Depends(get_db
     return {"unread": unread_count(db, user)}
 
 
+# ---------- 集計 ----------
+MEAL_LABELS = {"dinner": "夕食", "breakfast": "朝食"}
+WEEKDAYS = "月火水木金土日"
+# (キー, 見出し) — 画面と Excel の列順
+SUMMARY_COLS = [
+    ("groups", "組数"), ("adults", "大人"), ("children", "子供"), ("infants", "幼児"), ("total", "計"),
+    ("adult_coupon", "大人クーポン(食事付)"), ("free_adult", "フリー大人(生打ち)"),
+    ("child_coupon", "子供クーポン(食事付)"), ("free_child", "フリー子供(生打ち)"), ("outside", "外来"),
+    ("entered", "入場済(組)"),
+]
+SUMMED = ("adults", "children", "infants", "adult_coupon", "free_adult", "child_coupon", "free_child", "outside")
+
+
+def summarize(db: Session, meal: str, start: date, end: date) -> dict:
+    if end < start:
+        raise HTTPException(400, "終了日は開始日以降にしてください")
+    if (end - start).days > 366:
+        raise HTTPException(400, "期間は1年以内にしてください")
+    days = {start + timedelta(days=i): dict.fromkeys((k for k, _ in SUMMARY_COLS), 0)
+            for i in range((end - start).days + 1)}
+    rows = db.scalars(select(Reservation).where(
+        Reservation.meal == meal, Reservation.date >= start, Reservation.date <= end,
+        Reservation.deleted_at.is_(None)))  # 削除済みは集計しない
+    for r in rows:
+        a = days[r.date]
+        a["groups"] += 1
+        for k in SUMMED:
+            a[k] += getattr(r, k)
+        a["total"] += r.adults + r.children + r.infants
+        a["entered"] += r.entered_at is not None
+    total = {k: sum(a[k] for a in days.values()) for k, _ in SUMMARY_COLS}
+    return {
+        "meal": meal, "start": start.isoformat(), "end": end.isoformat(),
+        "columns": [{"key": k, "label": l} for k, l in SUMMARY_COLS],
+        "days": [{"date": d.isoformat(), "weekday": WEEKDAYS[d.weekday()], **a} for d, a in days.items()],
+        "total": total,
+    }
+
+
+@app.get("/api/{meal}/summary")
+def meal_summary(meal: str, start: date, end: date, _: User = Depends(current_user), db: Session = Depends(get_db)):
+    return summarize(db, check_meal(meal), start, end)
+
+
+@app.get("/api/{meal}/summary.xlsx")
+def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(current_user),
+                      db: Session = Depends(get_db)):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    data = summarize(db, check_meal(meal), start, end)
+    title = f"{MEAL_LABELS[meal]}集計"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = title
+    ws.append([f"{title}　{start:%Y/%m/%d}〜{end:%Y/%m/%d}"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([f"出力日時 {now_jst():%Y/%m/%d %H:%M}(削除済みの予約は除く)"])
+    ws["A2"].font = Font(size=9, color="777777")
+    ws.append([])
+    head = ["日付", "曜日"] + [l for _, l in SUMMARY_COLS]
+    ws.append(head)
+    thin = Side(style="thin", color="BBBBBB")
+    border = Border(top=thin, bottom=thin, left=thin, right=thin)
+    for c in ws[4]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor="E6F1FB")
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border = border
+    for d in data["days"]:
+        ws.append([date.fromisoformat(d["date"]), d["weekday"]] + [d[k] for k, _ in SUMMARY_COLS])
+        row = ws[ws.max_row]
+        row[0].number_format = "yyyy/mm/dd"
+        color = {"土": "185FA5", "日": "C0392B"}.get(d["weekday"])
+        for c in row:
+            c.border = border
+            if color and c.column <= 2:
+                c.font = Font(color=color)
+    ws.append(["合計", ""] + [data["total"][k] for k, _ in SUMMARY_COLS])
+    for c in ws[ws.max_row]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor="F2F2F2")
+        c.border = border
+    ws.column_dimensions["A"].width = 12
+    ws.column_dimensions["B"].width = 5
+    for i in range(3, len(head) + 1):
+        ws.column_dimensions[ws.cell(row=4, column=i).column_letter].width = 11
+    ws.row_dimensions[4].height = 32
+    ws.freeze_panes = "C5"
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.print_title_rows = "4:4"
+
+    buf = BytesIO()
+    wb.save(buf)
+    fname = f"{title}_{start:%Y%m%d}-{end:%Y%m%d}.xlsx"
+    return Response(buf.getvalue(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
+
+
 # ---------- ページ ----------
-PAGES = {"dinner", "breakfast", "chat", "admin"}
+PAGES = {"dinner", "breakfast", "dinner-summary", "chat", "admin"}
 
 
 @app.get("/healthz")
@@ -606,4 +720,4 @@ def page(page: str, request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login")
     if page == "admin" and user.role != "admin":
         return RedirectResponse("/dinner")
-    return FileResponse(BASE / "pages" / f"{page}.html")
+    return FileResponse(BASE / "pages" / f"{page.replace('-', '_')}.html")

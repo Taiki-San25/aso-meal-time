@@ -88,6 +88,7 @@ window.AMT = (function () {
     ],
     mainMenu: [
       { label: '夕食時間管理表', icon: 'ti-moon', href: '/dinner' },
+      { label: '夕食集計', icon: 'ti-chart-bar', href: '/dinner-summary' },
       { label: '朝食時間管理表', icon: 'ti-sun', href: '/breakfast' },
       { label: 'チャット', icon: 'ti-messages', href: '/chat', badgeKey: 'chat' }
     ],

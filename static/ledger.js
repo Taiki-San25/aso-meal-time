@@ -33,8 +33,8 @@
   const COUNT_FIELDS = [
     { key: 'adult_coupon', short: '大人CP', full: '大人クーポン(食事付)' },
     { key: 'free_adult', short: 'フリー大', full: 'フリー大人(生打ち)' },
-    { key: 'free_child', short: 'フリー子', full: 'フリー子供(生打ち)' },
     { key: 'child_coupon', short: '子供CP', full: '子供クーポン(食事付)' },
+    { key: 'free_child', short: 'フリー子', full: 'フリー子供(生打ち)' },
     { key: 'outside', short: '外来', full: '外来' },
   ];
 
