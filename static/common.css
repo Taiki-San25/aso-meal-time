@@ -1,0 +1,123 @@
+/* common.css — 上部バー・サイドバー共通スタイル */
+:root{
+  --accent:#185fa5;
+  --accent-bg:#e6f1fb;
+  --line:#ddd;
+  --side-bg:#f7f6f2;
+  --text:#1a1a1a;
+  box-sizing:border-box;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%}
+body{margin:0;font-family:sans-serif;color:var(--text);background:#fff}
+
+/* ---------- 上部バー ---------- */
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:53px;z-index:100;
+  background:#fff;border-bottom:1px solid #ddd;
+  padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+}
+#topbar .tbLeft{display:flex;align-items:center;gap:12px;min-width:0}
+#topbar .tbFavicon{width:36px;height:36px;flex-shrink:0;display:block;object-fit:contain}
+#topbar .tbFaviconPh{width:36px;height:36px;flex-shrink:0;border:1px dashed #ccc;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;color:#999;font-size:10px}
+#topbar .tbLogo{font-weight:700;font-size:34px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#topbar .tbRight{display:flex;align-items:center;gap:16px;flex-shrink:0}
+#hamburger{display:none;width:34px;height:34px;border:none;background:transparent;padding:0;
+  color:#185fa5;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0}
+#hamburger i{font-size:20px}
+
+.pillBtn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:999px;
+  font-size:13px;font-family:inherit;cursor:pointer;line-height:1;white-space:nowrap}
+.pillBtn i{font-size:15px}
+.pillBtn.primary{background:#185fa5;color:#fff;border:none}
+.pillBtn.normal{background:#fff;color:#333;border:1px solid #ccc}
+
+.ticker{flex:1;min-width:0;margin:0 24px;height:32px;background:#e6f1fb;border:1px solid #b8d4ef;
+  color:#185fa5;font-size:12.5px;border-radius:999px;display:flex;align-items:center;gap:6px;
+  padding:0 14px;overflow:hidden;white-space:nowrap}
+.ticker span{overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- サイドバー ---------- */
+#sidebar{
+  position:fixed;top:53px;left:0;bottom:0;width:220px;transition:width 0.15s;z-index:99;
+  background:#f7f6f2;border-right:1px solid #ddd;overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+#accountRow{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #ddd}
+#accountRow .avatar{width:28px;height:28px;border-radius:50%;background:#e6f1fb;color:#185fa5;
+  font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#accountRow .userName{font-size:13px;color:#1a1a1a;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#collapseBtn{width:28px;height:28px;border-radius:50%;background:#e6f1fb;border:none;padding:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+#collapseBtn i{font-size:15px;color:#185fa5}
+
+.navGroup{padding:10px 0}
+a.navRow{display:flex;align-items:center;gap:10px;padding:0 18px;height:40.5px;font-size:14px;
+  color:#1a1a1a;background:transparent;font-weight:400;text-decoration:none;white-space:nowrap}
+a.navRow i{font-size:18px;flex-shrink:0}
+a.navRow .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+a.navRow:not(.navRowActive):hover{box-shadow:inset 3px 0 0 0 #b5d4f4}
+a.navRow.navRowActive{color:#185fa5;background:#e6f1fb;font-weight:500}
+a.navRow.navRowActive.adminPage{background:#f0e6fb}
+
+.navHeading{font-size:11px;color:#999;padding:0 18px;margin:14px 0 4px;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;user-select:none;white-space:nowrap}
+.navHeading i{font-size:12px;transition:transform 0.15s}
+.navHeading.closed i{transform:rotate(-90deg)}
+.navSection.closed{display:none}
+
+.navBottom{padding:0 0 10px}
+.navBottom a.navRow{height:auto;padding:9.72px 18px;font-size:13px;color:#333}
+.navBottom a.navRow i{font-size:17px}
+.navBottom a.navRow.navRowActive{color:#185fa5}
+
+.badge{margin-left:auto;background:#d64545;color:#fff;font-size:10px;font-weight:700;
+  border-radius:999px;padding:1px 7px;line-height:1.4}
+
+/* 格納時 */
+body.sbCollapsed #sidebar{width:60px}
+body.sbCollapsed #accountRow{justify-content:center;padding:12px 0}
+body.sbCollapsed #accountRow .avatar,
+body.sbCollapsed #accountRow .userName,
+body.sbCollapsed a.navRow .lbl,
+body.sbCollapsed a.navRow .badge,
+body.sbCollapsed .navHeading{display:none}
+body.sbCollapsed .navSection.closed{display:block}
+
+/* ---------- メイン ---------- */
+#mainContent{margin-left:220px;margin-top:53px;padding:12px 32px 24px;transition:margin-left 0.15s}
+body.sbCollapsed #mainContent{margin-left:60px}
+
+#drawerBackdrop{display:none}
+
+/* ---------- レスポンシブ ---------- */
+@media (max-width:1024px){
+  #topbar{padding:0 14px}
+  .pillBtn{padding:7px 12px;font-size:12px}
+  #mainContent{padding:10px 16px 18px}
+}
+@media (max-width:640px){
+  #hamburger{display:flex}
+  #collapseBtn{display:none}
+  #topbar .tbLogo{font-size:20px}
+  #topbar .tbFavicon,#topbar .tbFaviconPh{width:26px;height:26px}
+  .pillBtn .btnLbl{display:none}
+  .ticker{display:none}
+  #sidebar,body.sbCollapsed #sidebar{
+    width:240px;transform:translateX(-100%);transition:transform 0.2s;
+    box-shadow:2px 0 12px rgba(0,0,0,0.15);
+  }
+  body.drawerOpen #sidebar{transform:translateX(0)}
+  /* ドロワーでは格納状態を無視して常にラベル表示 */
+  body.sbCollapsed #accountRow{justify-content:flex-start;padding:12px 14px}
+  body.sbCollapsed #accountRow .avatar,body.sbCollapsed #accountRow .userName{display:flex}
+  body.sbCollapsed #accountRow .userName{display:block}
+  body.sbCollapsed a.navRow .lbl{display:block}
+  body.sbCollapsed a.navRow .badge{display:inline-block}
+  body.sbCollapsed .navHeading{display:flex}
+  body.sbCollapsed .navSection.closed{display:none}
+  #mainContent,body.sbCollapsed #mainContent{margin-left:0;padding:10px 14px 18px}
+  body.drawerOpen #drawerBackdrop{display:block;position:fixed;inset:53px 0 0 0;z-index:98;background:transparent}
+}
