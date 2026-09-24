@@ -190,6 +190,8 @@ class ReservationIn(BaseModel):
     time_slot: str | None = None
     allergy: str = Field(default="", max_length=2000)
     note: str = Field(default="", max_length=2000)
+    grouped: bool = False           # グループ登録する
+    group_with: int | None = None   # 紐づける相手の予約ID
 
     _time = field_validator("time_slot")(norm_time)
 
@@ -207,7 +209,8 @@ class TimeSlotIn(BaseModel):
 
 
 TRACKED = ("date", "nights", "night_no", "time_slot", "room", "guest_name", "adults", "children", "infants",
-           "allergy", "note")
+           "allergy", "note", "group_id")
+GROUP_FIELDS = {"grouped", "group_with"}
 
 
 def iso(v: datetime | None) -> str | None:
@@ -250,7 +253,8 @@ def record(db: Session, r: Reservation, user: User, action: str, changes: dict) 
                               changed_by=user.id))
 
 
-def apply_update(db: Session, r: Reservation, values: dict, user: User) -> None:
+def change(db: Session, r: Reservation, values: dict, user: User) -> None:
+    """値を更新し、差分があれば履歴に残す(commit は呼び出し側)"""
     before = snapshot(r)
     for k, v in values.items():
         setattr(r, k, v)
@@ -258,7 +262,32 @@ def apply_update(db: Session, r: Reservation, values: dict, user: User) -> None:
     diff = {f: [before[f], after[f]] for f in TRACKED if before[f] != after[f]}
     if diff:
         record(db, r, user, "update", diff)
-    db.commit()
+
+
+# ---------- グループ ----------
+def group_target(db: Session, meal: str, d: date, target_id: int | None, self_id: int | None) -> Reservation:
+    t = db.get(Reservation, target_id) if target_id else None
+    if not t or t.meal != meal or t.date != d or t.deleted_at is not None or t.id == self_id:
+        raise HTTPException(400, "紐づける予約を選んでください")
+    return t
+
+
+def ensure_group(db: Session, t: Reservation, user: User) -> str:
+    """相手がまだグループでなければ新しいグループにする"""
+    if not t.group_id:
+        change(db, t, {"group_id": uuid.uuid4().hex}, user)
+    return t.group_id
+
+
+def shrink_group(db: Session, group_id: str | None, user: User) -> None:
+    """抜けた結果1件だけ残ったグループは解消する"""
+    if not group_id:
+        return
+    db.flush()
+    rest = list(db.scalars(select(Reservation).where(Reservation.group_id == group_id,
+                                                     Reservation.deleted_at.is_(None))))
+    if len(rest) == 1:
+        change(db, rest[0], {"group_id": None}, user)
 
 
 @app.get("/api/{meal}/reservations")
@@ -277,12 +306,19 @@ def create_reservation(meal: str, body: ReservationCreateIn, user: User = Depend
                        db: Session = Depends(get_db)):
     check_meal(meal)
     now = now_jst()
-    values = body.model_dump(exclude={"date", "nights"})
+    values = body.model_dump(exclude={"date", "nights"} | GROUP_FIELDS)
     stay_id = uuid.uuid4().hex if body.nights > 1 else None
+    target = group_target(db, meal, body.date, body.group_with, None) if body.grouped else None
     created = []
     for i in range(body.nights):
-        r = Reservation(meal=meal, date=body.date + timedelta(days=i), nights=body.nights, night_no=i + 1,
-                        stay_id=stay_id, **values,
+        d = body.date + timedelta(days=i)
+        # 連泊時は、相手の同じ日の予約(相手も連泊なら)と紐づける
+        mate = target if i == 0 or not target else (
+            db.scalar(select(Reservation).where(Reservation.stay_id == target.stay_id, Reservation.date == d,
+                                                Reservation.deleted_at.is_(None))) if target.stay_id else None)
+        group_id = ensure_group(db, mate, user) if mate else None
+        r = Reservation(meal=meal, date=d, nights=body.nights, night_no=i + 1,
+                        stay_id=stay_id, group_id=group_id, **values,
                         created_at=now, created_by=user.id, updated_at=now, updated_by=user.id)
         db.add(r)
         db.flush()
@@ -297,7 +333,18 @@ def create_reservation(meal: str, body: ReservationCreateIn, user: User = Depend
 def update_reservation(meal: str, rid: int, body: ReservationIn, user: User = Depends(current_user),
                        db: Session = Depends(get_db)):
     r = get_reservation(db, check_meal(meal), rid)
-    apply_update(db, r, body.model_dump(), user)
+    values = body.model_dump(exclude=GROUP_FIELDS)
+    old_group = r.group_id
+    if not body.grouped:
+        values["group_id"] = None
+    else:
+        t = group_target(db, meal, r.date, body.group_with, r.id)
+        if not (r.group_id and t.group_id == r.group_id):
+            values["group_id"] = ensure_group(db, t, user)
+    change(db, r, values, user)
+    if old_group and old_group != r.group_id:
+        shrink_group(db, old_group, user)
+    db.commit()
     return to_dict(r, user_names(db))
 
 
@@ -305,7 +352,8 @@ def update_reservation(meal: str, rid: int, body: ReservationIn, user: User = De
 def set_time(meal: str, rid: int, body: TimeSlotIn, user: User = Depends(current_user),
              db: Session = Depends(get_db)):
     r = get_reservation(db, check_meal(meal), rid)
-    apply_update(db, r, {"time_slot": body.time_slot}, user)
+    change(db, r, {"time_slot": body.time_slot}, user)
+    db.commit()
     return to_dict(r, user_names(db))
 
 

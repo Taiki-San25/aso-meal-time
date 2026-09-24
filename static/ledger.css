@@ -40,6 +40,18 @@
 .formDate{margin:0;font-size:15px;font-weight:500;display:flex;align-items:center;gap:6px}
 .formDate i{color:var(--accent);font-size:18px}
 .formDate .muted{font-size:12px;font-weight:400}
+.grpTag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:4px;font-size:11px;font-weight:700;
+  line-height:18px;vertical-align:1px;text-decoration:none}
+.grpTag.g0{background:#e3effc;color:#185fa5}
+.grpTag.g1{background:#e6f4ea;color:#2e7d32}
+.grpTag.g2{background:#fdf0e1;color:#a55a00}
+.grpTag.g3{background:#f3e8fb;color:#7b3fa6}
+.grpTag.g4{background:#fde8ec;color:#b3264a}
+.grpTag.g5{background:#e4f5f5;color:#1d7373}
+.ledgerTable tbody tr.deleted .grpTag{background:#e6e6e6;color:#999}
+.groupBox{border-top:1px solid #eee;padding-top:10px;display:grid;gap:8px}
+.groupPick{display:grid;gap:4px;padding-left:22px}
+.groupNote{margin:0;font-size:12px}
 .ledgerTable td.upd{color:#888;font-size:12px;white-space:nowrap}
 .ledgerTable .slotSel{width:84px;height:30px;padding:0 6px;font-size:13px}
 .allergy{display:inline-flex;gap:4px;color:#c0392b;font-weight:500;white-space:pre-wrap}
@@ -90,6 +102,7 @@
   .printOnly{display:inline;font-weight:700}
   .ledgerTable .slotSel{display:none}
   .ledgerTable th.sortable i{display:none}
+  .grpTag{border:1px solid currentColor}
   .ledgerTable th.sortable button{padding:4px 6px}
   .ledgerTable tbody tr.deleted{display:none}
   .ledgerTable tbody tr:hover td{background:none}

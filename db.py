@@ -76,6 +76,7 @@ class Reservation(Base):
     nights: Mapped[int] = mapped_column(Integer, default=1)    # 泊数
     night_no: Mapped[int] = mapped_column(Integer, default=1)  # 何泊目か
     stay_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)  # 連泊分をまとめるID
+    group_id: Mapped[str | None] = mapped_column(String(32), nullable=True)  # グループ登録で紐づいた予約の共通ID
     allergy: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_jst)
@@ -102,6 +103,7 @@ ADDED_COLUMNS = [
     ("reservations", "nights", "INTEGER NOT NULL DEFAULT 1"),
     ("reservations", "night_no", "INTEGER NOT NULL DEFAULT 1"),
     ("reservations", "stay_id", "VARCHAR(32)"),
+    ("reservations", "group_id", "VARCHAR(32)"),
 ]
 
 

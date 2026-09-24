@@ -94,10 +94,26 @@
     return `${y === String(new Date().getFullYear()) ? '' : y + '/'}${+mo}/${+da} ${t.slice(0, 5)}`;
   };
   const FIELD_LABELS = { date: '日付', time_slot: '時間', room: '部屋', guest_name: '代表者名', adults: '大人',
-    children: '子供', infants: '幼児', nights: '泊数', night_no: '何泊目', allergy: 'アレルギー', note: '備考' };
+    children: '子供', infants: '幼児', nights: '泊数', night_no: '何泊目', group_id: 'グループ', allergy: 'アレルギー', note: '備考' };
   const nightsLabel = r => `${r.night_no}泊/${r.nights}泊`;
   const ACTION_LABELS = { create: '登録', update: '変更', delete: '削除', restore: '復元' };
-  const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定') : (v === '' || v === null ? '(空欄)' : String(v));
+  const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定')
+    : f === 'group_id' ? (v ? 'あり' : 'なし')
+    : (v === '' || v === null ? '(空欄)' : String(v));
+
+  // グループ: この日の有効な予約のうち2件以上で構成されるものに G1, G2… を振る(時間→部屋順)
+  function groupInfo() {
+    const members = {};
+    active().filter(r => r.group_id).forEach(r => (members[r.group_id] = members[r.group_id] || []).push(r));
+    const order = r => (r.time_slot || '99:99') + '|' + r.room.padStart(8, '0');
+    const groups = Object.entries(members).filter(([, ms]) => ms.length > 1)
+      .map(([id, ms]) => [id, ms.sort((a, b) => order(a).localeCompare(order(b)))])
+      .sort(([, a], [, b]) => order(a[0]).localeCompare(order(b[0])));
+    return Object.fromEntries(groups.map(([id, ms], i) => [id, { no: i + 1, members: ms }]));
+  }
+  const groupTag = (g, extra = '') => g
+    ? `<span class="grpTag g${(g.no - 1) % 6}" title="グループ: ${esc(g.members.map(m => m.room).join('・'))}">G${g.no}</span>${extra}`
+    : '';
 
   function visibleRows() {
     const q = state.q.trim().toLowerCase();
@@ -169,6 +185,7 @@
       return;
     }
     let prevSlot = null;
+    const groups = groupInfo();
     tbody.innerHTML = rows.map(r => {
       const brk = state.sort.key === 'time' && prevSlot !== null && prevSlot !== (r.time_slot || UNSET);
       prevSlot = r.time_slot || UNSET;
@@ -178,7 +195,7 @@
           ? `<span class="delBadge">削除済</span> ${r.time_slot || '未定'}`
           : `<select class="slotSel" aria-label="時間">${slotOptions(r.time_slot)}</select>
           <span class="printOnly">${r.time_slot || '未定'}</span>`}</td>
-        <td class="room">${esc(r.room)}</td>
+        <td class="room">${esc(r.room)}${groupTag(groups[r.group_id])}</td>
         <td>${esc(r.guest_name)}</td>
         <td class="nights">${nightsLabel(r)}</td>
         <td class="num">${r.adults}</td><td class="num">${r.children}</td><td class="num">${r.infants}</td>
@@ -198,6 +215,24 @@
     if (r && r.deleted) return openDeleted(r);
     r = r || { date: state.date, nights: 1, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '' };
     const dateLabel = d => `${d.replace(/-/g, '/')}(${dow(d)})`;
+    const groups = groupInfo();
+    const myGroup = groups[r.group_id];
+    const candidates = active().filter(x => x.id !== r.id)
+      .sort((a, b) => a.room.localeCompare(b.room, 'ja', { numeric: true }));
+    const mate = myGroup && myGroup.members.find(x => x.id !== r.id);
+    const groupHtml = `
+        <div class="groupBox">
+          <label class="check"><input type="checkbox" name="grouped" ${myGroup ? 'checked' : ''} ${candidates.length ? '' : 'disabled'}>
+            グループ登録(他の予約と紐づける)</label>
+          ${candidates.length ? `<div class="groupPick" ${myGroup ? '' : 'hidden'}>
+            <label>紐づける予約<select name="group_with">
+              ${myGroup ? '' : '<option value="">選択してください</option>'}
+              ${candidates.map(x => `<option value="${x.id}"${mate && x.id === mate.id ? ' selected' : ''}>${esc(x.room)}　${esc(x.guest_name)}(${x.time_slot || '未定'})${groups[x.group_id] ? `　[G${groups[x.group_id].no}]` : ''}</option>`).join('')}
+            </select></label>
+            ${myGroup ? `<p class="muted groupNote">現在のグループ: ${myGroup.members.map(x => esc(x.room + ' ' + x.guest_name)).join('、')}</p>` : ''}
+            <p class="muted groupNote">選んだ予約がグループ登録済みの場合は、そのグループに加わります。</p>
+          </div>` : '<p class="muted groupNote">この日に紐づけられる他の予約がありません。</p>'}
+        </div>`;
     const m = modal({
       title: isNew ? '予約を追加' : `予約を編集(${r.room})`,
       wide: true,
@@ -221,6 +256,7 @@
         </div>
         <label>アレルギー<textarea name="allergy" maxlength="2000">${esc(r.allergy)}</textarea></label>
         <label>備考<textarea name="note" maxlength="2000">${esc(r.note)}</textarea></label>
+        ${groupHtml}
       </form>
       ${isNew ? '' : auditHtml(r)}`,
       buttons: [
@@ -230,11 +266,19 @@
           label: isNew ? '追加する' : '保存する', primary: true, onClick: async () => {
             const f = m.querySelector('form');
             if (!f.reportValidity()) return false;
+            const grouped = f.grouped.checked;
+            if (grouped && !f.group_with.value) { toast('紐づける予約を選んでください', true); f.group_with.focus(); return false; }
+            if (isNew && !f.time_slot.value && !(await confirmDialog({
+              title: '時間が未定です',
+              message: '時間が「未定」のまま登録しようとしています。このまま登録しますか？',
+              ok: '未定のまま登録', cancel: '戻って時間を選ぶ',
+            }))) { f.time_slot.focus(); return false; }
             const body = {
               time_slot: f.time_slot.value || null,
               room: f.room.value, guest_name: f.guest_name.value,
               adults: +f.adults.value, children: +f.children.value, infants: +f.infants.value,
               allergy: f.allergy.value, note: f.note.value,
+              grouped, group_with: grouped ? +f.group_with.value : null,
             };
             if (isNew) {
               Object.assign(body, { date: state.date, nights: +f.nights.value });
@@ -249,9 +293,14 @@
         }
       ]
     });
+    const form = m.querySelector('form');
+    form.grouped.addEventListener('change', () => {
+      const pick = m.querySelector('.groupPick');
+      if (pick) pick.hidden = !form.grouped.checked;
+    });
     if (isNew) {
       // 連泊時に登録される日付を表示
-      const f = m.querySelector('form');
+      const f = form;
       const hint = m.querySelector('.nightsHint');
       const upd = () => {
         const n = Math.min(Math.max(+f.nights.value || 1, 1), 30);
@@ -317,16 +366,25 @@
     loadHistory(r, m);
   }
 
-  async function confirmDelete(r, parent) {
-    const ok = await new Promise(resolve => {
+  // はい/いいえの確認。閉じ方に関わらず結果を返す
+  function confirmDialog({ title, message, note, ok, cancel = 'キャンセル', danger }) {
+    return new Promise(resolve => {
       let yes = false;
       modal({
-        title: '予約を削除',
-        body: `<p style="margin:0">${esc(r.room)} ${esc(r.guest_name)} 様の予約を削除します。よろしいですか？</p>
-          <p class="muted" style="margin:8px 0 0;font-size:12px">削除した予約は「削除済みも表示」から閲覧・復元できます。</p>`,
-        buttons: [{ label: 'キャンセル' }, { label: '削除する', danger: true, onClick: () => { yes = true; } }],
+        title,
+        body: `<p style="margin:0">${message}</p>${note ? `<p class="muted" style="margin:8px 0 0;font-size:12px">${note}</p>` : ''}`,
+        buttons: [{ label: cancel }, { label: ok, primary: !danger, danger, onClick: () => { yes = true; } }],
         onClose: () => resolve(yes),
       });
+    });
+  }
+
+  async function confirmDelete(r, parent) {
+    const ok = await confirmDialog({
+      title: '予約を削除',
+      message: `${esc(r.room)} ${esc(r.guest_name)} 様の予約を削除します。よろしいですか？`,
+      note: '削除した予約は「削除済みも表示」から閲覧・復元できます。',
+      ok: '削除する', danger: true,
     });
     if (!ok) return false;
     await api(`/api/${MEAL}/reservations/${r.id}`, { method: 'DELETE' });
