@@ -148,7 +148,7 @@
 
   document.getElementById('attachBtn').addEventListener('click', () => {
     const m = modal({
-      title: '予約を添付',
+      title: 'お客様を紐付け',
       wide: true,
       body: `<div class="form">
         <div class="row">
