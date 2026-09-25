@@ -692,6 +692,12 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
         c.fill = PatternFill("solid", fgColor="E6F1FB")
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         c.border = border
+    # 合計行は見出しの直後(5行目)
+    ws.append(["合計", ""] + [data["total"][k] for k, _ in SUMMARY_COLS])
+    for c in ws[ws.max_row]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor="F2F2F2")
+        c.border = Border(top=thin, left=thin, right=thin, bottom=Side(style="medium", color="8FA9C4"))
     for d in data["days"]:
         ws.append([date.fromisoformat(d["date"]), d["weekday"]] + [d[k] for k, _ in SUMMARY_COLS])
         row = ws[ws.max_row]
@@ -701,22 +707,17 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
             c.border = border
             if color and c.column <= 2:
                 c.font = Font(color=color)
-    ws.append(["合計", ""] + [data["total"][k] for k, _ in SUMMARY_COLS])
-    for c in ws[ws.max_row]:
-        c.font = Font(bold=True)
-        c.fill = PatternFill("solid", fgColor="F2F2F2")
-        c.border = border
     ws.column_dimensions["A"].width = 12
     ws.column_dimensions["B"].width = 5
     for i in range(3, len(head) + 1):
         ws.column_dimensions[ws.cell(row=4, column=i).column_letter].width = 11
     ws.row_dimensions[4].height = 32
-    ws.freeze_panes = "C5"
+    ws.freeze_panes = "C6"  # 見出しと合計行を固定
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.print_title_rows = "4:4"
+    ws.print_title_rows = "4:5"  # 印刷時は各ページに見出しと合計行
 
     buf = BytesIO()
     wb.save(buf)
