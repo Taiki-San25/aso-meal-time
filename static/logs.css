@@ -1,0 +1,30 @@
+/* logs.css — 操作ログ */
+.logBar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.logBar input[type=date]{width:150px}
+.logBar #lgKind{width:150px}
+.logBar #lgQ{width:240px;flex:0 1 240px}
+.lgCount{font-size:12px;margin:0 0 6px}
+
+.logTable td{white-space:nowrap}
+.logTable td.when{font-variant-numeric:tabular-nums;color:#555}
+.logTable td.who{display:flex;align-items:center;gap:6px}
+.logTable td.act{font-weight:500}
+.logTable td.target a{color:var(--accent);text-decoration:none}
+.logTable td.target a:hover{text-decoration:underline}
+.logTable td.detail{white-space:normal;min-width:260px;max-width:520px;color:#444;word-break:break-word}
+.logTable tr.failed td{background:#fdf0ee}
+.logTable tr.failed td.act{color:#c0392b}
+
+.roleTag{font-size:10.5px;font-weight:700;padding:0 6px;border-radius:4px;line-height:17px}
+.roleTag.role-front{background:#e3effc;color:#185fa5}
+.roleTag.role-restaurant{background:#fdf0e1;color:#a55a00}
+.roleTag.role-admin{background:#f0e6fb;color:#6a3fa0}
+.kindTag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid}
+.kindTag.k-reservation{color:#185fa5;border-color:#b8d4ef;background:#f2f7fd}
+.kindTag.k-chat{color:#2e7d32;border-color:#a5d6a7;background:#f1f8f2}
+.kindTag.k-auth{color:#666;border-color:#d0d0d0;background:#f7f7f7}
+
+@media (max-width:640px){
+  .logBar input[type=date]{flex:1;width:auto;min-width:0}
+  .logBar #lgKind,.logBar #lgQ{flex:1 1 140px;width:auto}
+}

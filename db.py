@@ -67,6 +67,16 @@ class ChatMessage(Base):
     retracted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 取り消し(本文はDBに残す)
 
 
+class AuthLog(Base):
+    """ログイン・ログアウト・パスワード変更の記録(追記のみ)"""
+    __tablename__ = "auth_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=now_jst, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    username: Mapped[str] = mapped_column(String(64), default="")  # 入力されたログインID(失敗時の記録用)
+    action: Mapped[str] = mapped_column(String(32))  # login / login_failed / logout / password_change
+
+
 class ChatRead(Base):
     """ユーザーごとの既読位置"""
     __tablename__ = "chat_reads"

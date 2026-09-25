@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from db import (MEALS, ROLES, ChatMessage, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
+from db import (MEALS, ROLES, AuthLog, ChatMessage, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
                 User, init_db, now_jst)
 from security import hash_password, verify_password
 
@@ -111,16 +111,25 @@ class LoginIn(BaseModel):
 
 @app.post("/api/login")
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.username == body.username.strip()))
+    username = body.username.strip()
+    user = db.scalar(select(User).where(User.username == username))
     if not user or not user.active or not verify_password(body.password, user.password_hash):
+        db.add(AuthLog(user_id=user.id if user else None, username=username[:64], action="login_failed"))
+        db.commit()
         raise HTTPException(401, "IDまたはパスワードが違います")
+    db.add(AuthLog(user_id=user.id, username=user.username, action="login"))
+    db.commit()
     request.session.clear()
     request.session["uid"] = user.id
     return {"ok": True}
 
 
 @app.get("/logout")
-def logout(request: Request):
+def logout(request: Request, db: Session = Depends(get_db)):
+    user = session_user(request, db)
+    if user:
+        db.add(AuthLog(user_id=user.id, username=user.username, action="logout"))
+        db.commit()
     request.session.clear()
     return RedirectResponse("/login", 303)
 
@@ -141,6 +150,7 @@ def change_my_password(body: PasswordIn, user: User = Depends(current_user), db:
     if not verify_password(body.current, user.password_hash):
         raise HTTPException(400, "現在のパスワードが違います")
     user.password_hash = hash_password(body.new)
+    db.add(AuthLog(user_id=user.id, username=user.username, action="password_change"))
     db.commit()
     return {"ok": True}
 
@@ -690,8 +700,88 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
 
 
+# ---------- 操作ログ ----------
+FIELD_LABELS = {
+    "date": "日付", "nights": "泊数", "night_no": "何泊目", "time_slot": "時間", "room": "部屋",
+    "guest_name": "代表者名", "adults": "大人", "children": "子供", "infants": "幼児",
+    "adult_coupon": "大人クーポン(食事付)", "free_adult": "フリー大人(生打ち)",
+    "child_coupon": "子供クーポン(食事付)", "free_child": "フリー子供(生打ち)", "outside": "外来",
+    "allergy": "アレルギー", "note": "備考", "group_id": "グループ", "entered_at": "ステータス",
+}
+RES_ACTIONS = {"create": "登録", "update": "変更", "delete": "削除", "restore": "復元"}
+AUTH_ACTIONS = {"login": "ログイン", "login_failed": "ログイン失敗", "logout": "ログアウト",
+                "password_change": "パスワード変更"}
+LOG_MAX_DAYS = 93
+
+
+def fmt_value(field: str, v) -> str:
+    if field == "time_slot":
+        return v or "未定"
+    if field == "group_id":
+        return "あり" if v else "なし"
+    if field == "entered_at":
+        return "入場済" if v else "空白"
+    return "(空欄)" if v in (None, "") else str(v)
+
+
+def change_detail(action: str, changes: dict) -> str:
+    if action == "create":  # 登録時は入力された項目だけ
+        return "、".join(f"{FIELD_LABELS.get(f, f)} {fmt_value(f, b)}" for f, (_, b) in changes.items()
+                        if b not in (None, "", 0) and f not in ("date", "nights", "night_no", "room", "guest_name"))
+    return "、".join(f"{FIELD_LABELS.get(f, f)}: {fmt_value(f, a)} → {fmt_value(f, b)}" for f, (a, b) in changes.items())
+
+
+@app.get("/api/logs")
+def operation_logs(start: date, end: date, _: User = Depends(current_user), db: Session = Depends(get_db)):
+    """予約・チャット・ログインの操作を新しい順にまとめて返す"""
+    if end < start:
+        raise HTTPException(400, "終了日は開始日以降にしてください")
+    if (end - start).days >= LOG_MAX_DAYS:
+        raise HTTPException(400, f"期間は{LOG_MAX_DAYS}日以内にしてください")
+    t0 = datetime.combine(start, datetime.min.time())
+    t1 = datetime.combine(end + timedelta(days=1), datetime.min.time())
+    users = {u.id: u for u in db.scalars(select(User))}
+
+    def who(uid, fallback=""):
+        u = users.get(uid)
+        return {"user": u.display_name if u else fallback, "role": u.role if u else "",
+                "role_label": ROLES.get(u.role, "") if u else ""}
+
+    logs = []
+    # 予約
+    for h, r in db.execute(select(ReservationHistory, Reservation)
+                           .join(Reservation, Reservation.id == ReservationHistory.reservation_id)
+                           .where(ReservationHistory.changed_at >= t0, ReservationHistory.changed_at < t1)):
+        logs.append({
+            "_id": h.id, "at": iso(h.changed_at), "kind": "reservation", "kind_label": "予約",
+            "action": "入場済" if set(h.changes) == {"entered_at"} else RES_ACTIONS.get(h.action, h.action),
+            "target": f"{MEAL_LABELS.get(r.meal, '')} {r.date:%m/%d} {r.room} {r.guest_name}".strip(),
+            "link": f"/{r.meal}?d={r.date.isoformat()}&hl={r.id}",
+            "detail": change_detail(h.action, h.changes or {}), **who(h.changed_by)})
+    # チャット(取り消されたメッセージの本文はログにも出さない)
+    chat_q = select(ChatMessage).where(
+        ((ChatMessage.created_at >= t0) & (ChatMessage.created_at < t1)) |
+        ((ChatMessage.retracted_at >= t0) & (ChatMessage.retracted_at < t1)))
+    for m in db.scalars(chat_q):
+        base = {"_id": m.id, "kind": "chat", "kind_label": "チャット", "target": "チャット", "link": "/chat", **who(m.user_id)}
+        body = "(取り消し済み)" if m.retracted_at else m.body
+        if t0 <= m.created_at < t1:
+            logs.append({**base, "at": iso(m.created_at), "action": "投稿", "detail": body})
+        if m.retracted_at and t0 <= m.retracted_at < t1:
+            logs.append({**base, "_id": m.id + 0.5, "at": iso(m.retracted_at), "action": "取り消し", "detail": ""})
+    # ログイン
+    for a in db.scalars(select(AuthLog).where(AuthLog.at >= t0, AuthLog.at < t1)):
+        logs.append({"_id": a.id, "at": iso(a.at), "kind": "auth", "kind_label": "ログイン",
+                     "action": AUTH_ACTIONS.get(a.action, a.action), "target": "", "link": "",
+                     "detail": f"ログインID: {a.username}" if a.action == "login_failed" else "",
+                     "failed": a.action == "login_failed", **who(a.user_id, a.username)})
+    # 同じ秒の操作は記録順(各テーブルのID順)で並べる
+    logs.sort(key=lambda x: (x["at"], x.pop("_id")), reverse=True)
+    return logs
+
+
 # ---------- ページ ----------
-PAGES = {"dinner", "breakfast", "dinner-summary", "chat", "admin"}
+PAGES = {"dinner", "breakfast", "dinner-summary", "chat", "logs", "admin"}
 
 
 @app.get("/favicon.ico", include_in_schema=False)
