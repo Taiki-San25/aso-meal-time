@@ -144,8 +144,9 @@
       .sort(([, a], [, b]) => order(a[0]).localeCompare(order(b[0])));
     return Object.fromEntries(groups.map(([id, ms], i) => [id, { no: i + 1, members: ms }]));
   }
+  const GROUP_COLORS = 10;  // グループ色の数(ledger.css の .grpTag.g0〜g9)。超えると同じ色を繰り返す
   const groupTag = (g, extra = '') => g
-    ? `<span class="grpTag g${(g.no - 1) % 6}" title="グループ: ${esc(g.members.map(m => m.room).join('・'))}">G${g.no}</span>${extra}`
+    ? `<span class="grpTag g${(g.no - 1) % GROUP_COLORS}" title="グループ: ${esc(g.members.map(m => m.room).join('・'))}">G${g.no}</span>${extra}`
     : '';
 
   function visibleRows() {

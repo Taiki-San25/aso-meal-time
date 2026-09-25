@@ -73,6 +73,10 @@ body.dayFuture{background:rgba(227,238,250,.5)}
 .grpTag.g3{background:#f3e8fb;color:#7b3fa6}
 .grpTag.g4{background:#fde8ec;color:#b3264a}
 .grpTag.g5{background:#e4f5f5;color:#1d7373}
+.grpTag.g6{background:#fdf6d3;color:#7d6400}
+.grpTag.g7{background:#e8eafc;color:#3949ab}
+.grpTag.g8{background:#f3ebe4;color:#7a4a26}
+.grpTag.g9{background:#eef5dc;color:#55700f}
 .ledgerTable tbody tr.deleted .grpTag{background:#e6e6e6;color:#999}
 .groupBox{border-top:1px solid #eee;padding-top:10px;display:grid;gap:8px}
 .groupPick{display:grid;gap:4px;padding-left:22px}
