@@ -14,7 +14,8 @@
 .sumTable td.strong{font-weight:700}
 .sumTable .z{color:#ccc}
 .sumTable tbody tr:hover td{background:#f7fbff}
-.sumTable tfoot td{font-weight:700;background:#f3f6fa;border-top:2px solid #cfdcea;padding:8px 10px}
+.sumTable tr.totalRow td{font-weight:700;background:#f3f6fa;border-bottom:2px solid #cfdcea;padding:8px 10px}
+.sumTable tbody tr.totalRow:hover td{background:#f3f6fa}
 
 @media (max-width:640px){
   .sumBar input[type=date]{flex:1;width:auto;min-width:0}
@@ -26,7 +27,7 @@
   @page{size:A4 landscape;margin:10mm}
   .printTitle{display:block;font-size:16px;margin:0 0 4px}
   table.grid{font-size:10.5px}
-  table.grid th,table.grid td,.sumTable tfoot td{padding:3px 5px}
+  table.grid th,table.grid td,.sumTable tr.totalRow td{padding:3px 5px}
   .sumTable td.date a{color:inherit}
   .sumTable tbody tr{break-inside:avoid}
 }

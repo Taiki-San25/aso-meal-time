@@ -36,7 +36,7 @@
     <h2 class="printTitle" id="smTitle"></h2>
     <p class="muted smNote">削除済みの予約は集計に含みません。</p>
     <div class="tableWrap"><table class="grid sumTable">
-      <thead id="smHead"></thead><tbody id="smBody"><tr><td class="empty">読み込み中…</td></tr></tbody><tfoot id="smFoot"></tfoot>
+      <thead id="smHead"></thead><tbody id="smBody"><tr><td class="empty">読み込み中…</td></tr></tbody>
     </table></div>`;
 
   const $ = id => document.getElementById(id);
@@ -56,14 +56,15 @@
     const d = state.data;
     $('smTitle').textContent = `${MEAL_LABEL}集計　${slash(d.start)}〜${slash(d.end)}`;
     $('smHead').innerHTML = `<tr><th>日付</th>${d.columns.map(c => `<th class="num">${esc(c.label)}</th>`).join('')}</tr>`;
-    $('smBody').innerHTML = d.days.map(day => {
+    // 合計行は見出しの直後(2行目)に置く
+    const totalRow = `<tr class="totalRow"><td>合計</td>${d.columns.map(c => `<td class="num">${d.total[c.key]}</td>`).join('')}</tr>`;
+    $('smBody').innerHTML = totalRow + d.days.map(day => {
       const cls = { 土: 'sat', 日: 'sun' }[day.weekday] || '';
       return `<tr class="${day.groups ? '' : 'zero'}">
         <td class="date ${cls}"><a href="/${MEAL}?d=${day.date}">${+day.date.slice(5, 7)}/${+day.date.slice(8, 10)}(${day.weekday})</a></td>
         ${d.columns.map(c => `<td class="num${c.key === 'total' ? ' strong' : ''}">${day[c.key] || '<span class="z">0</span>'}</td>`).join('')}
       </tr>`;
     }).join('');
-    $('smFoot').innerHTML = `<tr><td>合計</td>${d.columns.map(c => `<td class="num">${d.total[c.key]}</td>`).join('')}</tr>`;
   }
 
   function setRange(start, end) {
