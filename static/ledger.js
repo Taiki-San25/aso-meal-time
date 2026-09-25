@@ -39,7 +39,7 @@
     { key: 'free_child', short: 'フリー子', full: 'フリー子供(生打ち)', icon: 'ti-mood-kid', kind: 'free' },
     { key: 'outside', short: '外来', full: '外来', icon: 'ti-door-enter', kind: 'out' },
   ];
-  const countIcon = c => `<span class="cntIcon ${c.kind}" title="${c.full}" aria-label="${c.full}" role="img"><i class="ti ${c.icon}"></i></span>`;
+  const countIcon = (c, withTitle = true) => `<span class="cntIcon ${c.kind}"${withTitle ? ` title="${c.full}"` : ''} aria-label="${c.full}" role="img"><i class="ti ${c.icon}"></i></span>`;
   // 数が1以上の内訳項目をアイコンで表示(数は出さない)
   const countBadges = r => {
     const icons = COUNT_FIELDS.filter(c => r[c.key] > 0).map(countIcon).join('');
@@ -201,9 +201,15 @@
         <div class="sumSub">大${a.adults} 子${a.children} 幼${a.infants}</div></div>`;
     };
     // 内訳(大人CP等)の1日合計。削除済みは含めない
-    const counts = COUNT_FIELDS.map(c => {
-      const n = active().reduce((sum, r) => sum + (r[c.key] || 0), 0);
-      return `<div class="cntItem${n ? '' : ' zero'}" title="${c.full}">${countIcon(c)}<span class="cntLbl">${c.short}</span><b>${n}</b></div>`;
+    // ホバー(フォーカス・タップ)で時間帯別の内訳を吹き出し表示。0 の時間帯は省く
+    const counts = COUNT_FIELDS.map((c, i) => {
+      const bySlot = {};
+      active().forEach(r => { const k = r.time_slot || UNSET; bySlot[k] = (bySlot[k] || 0) + (r[c.key] || 0); });
+      const n = Object.values(bySlot).reduce((a, b) => a + b, 0);
+      const lines = keys.filter(k => bySlot[k]).map(k => `<tr><td>${k || '未定'}</td><td class="num">${bySlot[k]}名</td></tr>`).join('');
+      const tip = `<div class="cntTip${i >= 3 ? ' alignRight' : ''}" role="tooltip"><div class="tipHead">${c.full}</div>
+        ${lines ? `<table>${lines}</table>` : '<p class="muted">該当なし</p>'}</div>`;
+      return `<div class="cntItem${n ? '' : ' zero'}" tabindex="0" aria-label="${c.full} ${n}名">${countIcon(c, false)}<span class="cntLbl">${c.short}</span><b>${n}</b>${tip}</div>`;
     }).join('');
     $('ldSummary').innerHTML =
       keys.map(k => card(k || '未定', agg[k], k ? '' : 'unset')).join('') + card('合計', agg['*'], 'total') +

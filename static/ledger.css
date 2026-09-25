@@ -20,7 +20,20 @@ body.dayFuture{background:rgba(227,238,250,.5)}
 .cntItems{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:6px}
 .cntItem{display:flex;align-items:center;gap:5px;font-size:12px;color:#555;white-space:nowrap}
 .cntItem b{margin-left:2px;font-size:17px;line-height:1.2;color:var(--text);font-variant-numeric:tabular-nums}
-.cntItem.zero{opacity:.45}
+.cntItem.zero > :not(.cntTip){opacity:.45}
+.cntItem{position:relative;cursor:default;border-radius:4px;outline:none}
+.cntItem:focus-visible{box-shadow:0 0 0 2px #b5d4f4}
+.cntTip{display:none;position:absolute;top:calc(100% + 6px);left:-6px;z-index:60;min-width:170px;
+  background:#fff;border:1px solid #d6dbe1;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);
+  padding:8px 10px;font-size:12px;color:#333;white-space:nowrap}
+.cntTip.alignRight{left:auto;right:-6px}
+.cntItem:hover .cntTip,.cntItem:focus .cntTip,.cntItem:focus-within .cntTip{display:block}
+.cntTip .tipHead{font-weight:700;margin-bottom:4px;color:var(--text)}
+.cntTip table{border-collapse:collapse;width:100%}
+.cntTip td{padding:2px 0;border-top:1px solid #f0f0f0}
+.cntTip td.num{text-align:right;padding-left:16px;font-variant-numeric:tabular-nums;font-weight:500}
+.cntTip p{margin:0}
+@media print{.cntTip{display:none !important}}
 .sumCard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
 .sumCard .sumLabel{font-size:12px;color:#555;font-weight:500}
 .sumCard .sumMain{font-size:13px;margin-top:2px}
