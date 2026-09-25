@@ -694,6 +694,11 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
 PAGES = {"dinner", "breakfast", "dinner-summary", "chat", "admin"}
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(BASE / "static" / "favicon.ico", media_type="image/x-icon")
+
+
 @app.get("/healthz")
 def healthz():
     return {"ok": True}
