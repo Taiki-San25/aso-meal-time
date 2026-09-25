@@ -808,7 +808,7 @@ def operation_logs(start: date, end: date, _: User = Depends(current_user), db: 
 
 
 # ---------- ページ ----------
-PAGES = {"dinner", "breakfast", "dinner-summary", "chat", "logs", "admin"}
+PAGES = {"dinner", "breakfast", "dinner-summary", "breakfast-summary", "chat", "logs", "admin"}
 
 
 @app.get("/favicon.ico", include_in_schema=False)

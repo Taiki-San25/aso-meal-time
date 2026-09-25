@@ -90,6 +90,7 @@ window.AMT = (function () {
       { label: '夕食時間管理表', icon: 'ti-moon', href: '/dinner' },
       { label: '夕食集計', icon: 'ti-chart-bar', href: '/dinner-summary' },
       { label: '朝食時間管理表', icon: 'ti-sun', href: '/breakfast' },
+      { label: '朝食集計', icon: 'ti-chart-bar', href: '/breakfast-summary' },
       { label: 'チャット', icon: 'ti-messages', href: '/chat', badgeKey: 'chat' },
       { label: '操作ログ', icon: 'ti-list-details', href: '/logs' }
     ],
