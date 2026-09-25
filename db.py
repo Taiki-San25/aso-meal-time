@@ -26,7 +26,7 @@ SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 MEALS = ("dinner", "breakfast")
 # developer: 最上位ロール(管理者の全権限 + 入場済の操作)
-ROLES = {"developer": "developper", "admin": "管理者", "front": "フロント", "restaurant": "レストラン"}
+ROLES = {"developer": "developer", "admin": "管理者", "front": "フロント", "restaurant": "レストラン"}
 ADMIN_ROLES = ("developer", "admin")  # 管理者ページ・管理者APIを使えるロール
 ENTRY_ROLES = ("developer", "restaurant")  # 入場済を操作できるロール
 DEFAULT_SLOTS = {

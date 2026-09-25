@@ -52,9 +52,9 @@
 <script>
 (function () {
   const { esc, api, toast, modal } = AMT;
-  const ROLES = { developer: 'developper', admin: '管理者', front: 'フロント', restaurant: 'レストラン' };
+  const ROLES = { developer: 'developer', admin: '管理者', front: 'フロント', restaurant: 'レストラン' };
   let meRole = null;
-  // developper のアカウントは developper のみ作成・編集できる(サーバー側でも制限)
+  // developer のアカウントは developer のみ作成・編集できる(サーバー側でも制限)
   const selectableRoles = () => Object.entries(ROLES).filter(([k]) => k !== 'developer' || meRole === 'developer');
   let users = [];
   let meId = null;
