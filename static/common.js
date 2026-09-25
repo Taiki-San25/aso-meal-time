@@ -80,7 +80,7 @@ window.AMT = (function () {
 (function () {
   const CONFIG = {
     siteName: '阿蘇リゾートグランヴィリオホテル　喫食時間管理表',
-    favicon: '/static/favicon.ico',
+    favicon: '/static/logo.png',  // 上部バーのロゴ(favicon.ico から余白を除いたもの)
     ticker: '',             // お知らせ(空なら非表示)
     topButtons: [
       { label: 'パスワード変更', icon: 'ti-key', type: 'normal', href: '#password' },

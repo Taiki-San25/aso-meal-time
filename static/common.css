@@ -17,11 +17,11 @@ body{margin:0;font-family:sans-serif;color:var(--text);background:#fff}
   background:#fff;border-bottom:1px solid #ddd;
   padding:0 24px;display:flex;align-items:center;justify-content:space-between;
 }
-#topbar .tbLeft{display:flex;align-items:center;gap:12px;min-width:0}
-#topbar .tbFavicon{width:36px;height:36px;flex-shrink:0;display:block;object-fit:contain}
+#topbar .tbLeft{display:flex;align-items:center;gap:14px;min-width:0}
+#topbar .tbFavicon{width:42px;height:42px;flex-shrink:0;display:block;object-fit:contain}
 #topbar .tbFaviconPh{width:36px;height:36px;flex-shrink:0;border:1px dashed #ccc;border-radius:6px;
   display:flex;align-items:center;justify-content:center;color:#999;font-size:10px}
-#topbar .tbLogo{font-weight:700;font-size:34px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#topbar .tbLogo{font-weight:700;font-size:28px;line-height:1;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #topbar .tbRight{display:flex;align-items:center;gap:16px;flex-shrink:0}
 #hamburger{display:none;width:34px;height:34px;border:none;background:transparent;padding:0;
   color:#185fa5;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0}
@@ -97,14 +97,17 @@ body.sbCollapsed #mainContent{margin-left:60px}
 /* ---------- レスポンシブ ---------- */
 @media (max-width:1024px){
   #topbar{padding:0 14px}
+  #topbar .tbLogo{font-size:22px}
+  #topbar .tbFavicon{width:36px;height:36px}
   .pillBtn{padding:7px 12px;font-size:12px}
   #mainContent{padding:10px 16px 18px}
 }
 @media (max-width:640px){
   #hamburger{display:flex}
   #collapseBtn{display:none}
-  #topbar .tbLogo{font-size:20px}
-  #topbar .tbFavicon,#topbar .tbFaviconPh{width:26px;height:26px}
+  #topbar .tbLeft{gap:8px}
+  #topbar .tbLogo{font-size:18px}
+  #topbar .tbFavicon,#topbar .tbFaviconPh{width:32px;height:32px}
   .pillBtn .btnLbl{display:none}
   .ticker{display:none}
   #sidebar,body.sbCollapsed #sidebar{
