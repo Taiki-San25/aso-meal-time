@@ -13,7 +13,14 @@ body.dayFuture{background:rgba(227,238,250,.5)}
 .dow.sun{color:#c0392b}
 .dow.sat{color:var(--accent)}
 
-.summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin-bottom:12px}
+.summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.summary .sumCard{flex:1 0 108px;max-width:150px}
+/* 内訳カードは同じ行の残り幅いっぱいに広がり、入らなければ次の行へ */
+.summary .sumCard.cntCard{flex:100 1 300px;max-width:none}
+.cntItems{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:6px}
+.cntItem{display:flex;align-items:center;gap:5px;font-size:12px;color:#555;white-space:nowrap}
+.cntItem b{margin-left:2px;font-size:17px;line-height:1.2;color:var(--text);font-variant-numeric:tabular-nums}
+.cntItem.zero{opacity:.45}
 .sumCard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
 .sumCard .sumLabel{font-size:12px;color:#555;font-weight:500}
 .sumCard .sumMain{font-size:13px;margin-top:2px}
@@ -122,7 +129,7 @@ body.dayFuture{background:rgba(227,238,250,.5)}
   .ledgerBar #ldSearch{flex:1 1 140px;width:auto}
   .ledgerBar .barRight{margin-left:0}
   .ledgerBar [data-act=print]{display:none}
-  .summary{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+  .summary .sumCard{flex-basis:92px}
 }
 
 @media print{
@@ -140,7 +147,10 @@ body.dayFuture{background:rgba(227,238,250,.5)}
   .ledgerTable tbody tr.deleted{display:none}
   .ledgerTable tbody tr:hover td{background:none}
   .ledgerTable tbody tr.noSlot td:first-child{background:none}
-  .summary{grid-template-columns:repeat(8,1fr);gap:4px}
+  .summary{gap:4px}
+  .summary .sumCard{flex:1 0 70px}
+  .summary .sumCard.cntCard{flex:100 1 300px}
+  .cntIcon{width:14px;height:14px;font-size:10px}
   .sumCard{padding:4px 6px}
   .sumCard .sumMain b{font-size:15px}
   table.grid{font-size:11px}

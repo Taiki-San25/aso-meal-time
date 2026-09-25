@@ -200,8 +200,14 @@
         <div class="sumMain"><b>${t}</b>名 <span>${a.n}組</span></div>
         <div class="sumSub">大${a.adults} 子${a.children} 幼${a.infants}</div></div>`;
     };
+    // 内訳(大人CP等)の1日合計。削除済みは含めない
+    const counts = COUNT_FIELDS.map(c => {
+      const n = active().reduce((sum, r) => sum + (r[c.key] || 0), 0);
+      return `<div class="cntItem${n ? '' : ' zero'}" title="${c.full}">${countIcon(c)}<span class="cntLbl">${c.short}</span><b>${n}</b></div>`;
+    }).join('');
     $('ldSummary').innerHTML =
-      keys.map(k => card(k || '未定', agg[k], k ? '' : 'unset')).join('') + card('合計', agg['*'], 'total');
+      keys.map(k => card(k || '未定', agg[k], k ? '' : 'unset')).join('') + card('合計', agg['*'], 'total') +
+      `<div class="sumCard cntCard"><div class="sumLabel">内訳(1日合計)</div><div class="cntItems">${counts}</div></div>`;
   }
 
   function render() {
