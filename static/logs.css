@@ -19,6 +19,7 @@
 .roleTag.role-front{background:#e3effc;color:#185fa5}
 .roleTag.role-restaurant{background:#fdf0e1;color:#a55a00}
 .roleTag.role-admin{background:#f0e6fb;color:#6a3fa0}
+.roleTag.role-developer{background:#263238;color:#fff}
 .kindTag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid}
 .kindTag.k-reservation{color:#185fa5;border-color:#b8d4ef;background:#f2f7fd}
 .kindTag.k-chat{color:#2e7d32;border-color:#a5d6a7;background:#f1f8f2}

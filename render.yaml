@@ -20,6 +20,11 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # 最上位ロール(developer)のアカウント。そのIDが未登録なら起動時に作成する
+      - key: DEVELOPER_USERNAME
+        sync: false
+      - key: DEVELOPER_PASSWORD
+        sync: false
 
 databases:
   - name: aso-meal-time-db

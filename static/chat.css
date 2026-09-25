@@ -15,6 +15,7 @@
 .roleTag.role-front{background:#e3effc;color:#185fa5}
 .roleTag.role-restaurant{background:#fdf0e1;color:#a55a00}
 .roleTag.role-admin{background:#f0e6fb;color:#6a3fa0}
+.roleTag.role-developer{background:#263238;color:#fff}
 .bubbleRow{display:flex;align-items:flex-end;gap:6px}
 .msg.mine .bubbleRow{flex-direction:row-reverse}
 .bubble{background:#fff;border:1px solid #e3e5e9;border-radius:4px 14px 14px 14px;padding:8px 12px;font-size:14px;

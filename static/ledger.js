@@ -6,6 +6,7 @@
   const REFRESH_MS = 30000;
   const UNSET = '';  // 時間未定
   const MAX_COUNT = 6;  // フォームで選べる人数の上限
+  const ENTRY_ROLES = ['restaurant', 'developer'];  // 入場済を操作できるロール(サーバー側と同じ)
 
   const pad = n => String(n).padStart(2, '0');
   const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -260,7 +261,7 @@
   // ステータス: レストランは(削除済み以外)チェックボックス、他ロールは表示のみ
   function statusCell(r) {
     const title = r.entered_at ? ` title="${fmtTs(r.entered_at)} ${esc(r.entered_by)}"` : '';
-    if (state.role === 'restaurant' && !r.deleted) {
+    if (ENTRY_ROLES.includes(state.role) && !r.deleted) {
       return `<label class="entChk"${title}><input type="checkbox" class="entSel" ${r.entered_at ? 'checked' : ''}>入場済</label>`;
     }
     return r.entered_at ? `<span class="entBadge"${title}><i class="ti ti-check"></i>入場済</span>` : '';

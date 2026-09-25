@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
-from db import (MEALS, ROLES, AuthLog, ChatMessage, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
+from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
                 User, init_db, now_jst)
 from security import hash_password, verify_password
 
@@ -45,6 +45,21 @@ def bootstrap_admin() -> None:
         s.commit()
 
 
+def bootstrap_developer() -> None:
+    """DEVELOPER_USERNAME / DEVELOPER_PASSWORD が設定され、そのIDが未登録なら最上位ロールのアカウントを作る"""
+    username = os.environ.get("DEVELOPER_USERNAME", "").strip()
+    password = os.environ.get("DEVELOPER_PASSWORD", "")
+    if not (username and password):
+        return
+    with SessionLocal() as s:
+        if s.scalar(select(User).where(User.username == username)):
+            return
+        s.add(User(username=username, display_name=ROLES["developer"], password_hash=hash_password(password),
+                   role="developer", is_admin=True))
+        s.commit()
+        print(f"[info] 最上位ロールのアカウント {username} を作成しました")
+
+
 @asynccontextmanager
 async def lifespan(_app):
     if ON_RENDER and not IS_PROD:
@@ -52,6 +67,7 @@ async def lifespan(_app):
         raise RuntimeError("DATABASE_URL が未設定です。Render で PostgreSQL を接続してください")
     init_db()
     bootstrap_admin()
+    bootstrap_developer()
     yield
 
 
@@ -98,7 +114,7 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
 
 
 def admin_user(user: User = Depends(current_user)) -> User:
-    if user.role != "admin":
+    if user.role not in ADMIN_ROLES:
         raise HTTPException(403, "管理者のみ操作できます")
     return user
 
@@ -137,7 +153,7 @@ def logout(request: Request, db: Session = Depends(get_db)):
 @app.get("/api/me")
 def me(user: User = Depends(current_user)):
     return {"id": user.id, "name": user.display_name, "username": user.username,
-            "role": user.role, "role_label": ROLES.get(user.role, ""), "is_admin": user.role == "admin"}
+            "role": user.role, "role_label": ROLES.get(user.role, ""), "is_admin": user.role in ADMIN_ROLES}
 
 
 class PasswordIn(BaseModel):
@@ -396,8 +412,8 @@ class EnteredIn(BaseModel):
 @app.patch("/api/{meal}/reservations/{rid}/entered")
 def set_entered(meal: str, rid: int, body: EnteredIn, user: User = Depends(current_user),
                 db: Session = Depends(get_db)):
-    """ステータス(入場済)の切り替え。レストランロールのみ"""
-    if user.role != "restaurant":
+    """ステータス(入場済)の切り替え。レストランと最上位ロールのみ"""
+    if user.role not in ENTRY_ROLES:
         raise HTTPException(403, "入場済の操作はレストランのみ可能です")
     r = get_reservation(db, check_meal(meal), rid)
     if body.entered != (r.entered_at is not None):
@@ -444,11 +460,19 @@ def user_dict(u: User) -> dict:
             "role": u.role, "active": u.active}
 
 
-Role = Literal["admin", "front", "restaurant"]
+Role = Literal["developer", "admin", "front", "restaurant"]
 
 
 def set_role(u: User, role: str) -> None:
-    u.role, u.is_admin = role, role == "admin"
+    u.role, u.is_admin = role, role in ADMIN_ROLES
+
+
+def check_role_change(me_: User, target_role: str | None, target: User | None = None) -> None:
+    """最上位ロールのアカウントを作る・編集する・最上位ロールにするのは最上位ロールのみ"""
+    if me_.role == "developer":
+        return
+    if target_role == "developer" or (target and target.role == "developer"):
+        raise HTTPException(403, f"{ROLES['developer']} のアカウントは {ROLES['developer']} のみ操作できます")
 
 
 class UserCreateIn(BaseModel):
@@ -471,7 +495,8 @@ def list_users(_: User = Depends(admin_user), db: Session = Depends(get_db)):
 
 
 @app.post("/api/users")
-def create_user(body: UserCreateIn, _: User = Depends(admin_user), db: Session = Depends(get_db)):
+def create_user(body: UserCreateIn, me_: User = Depends(admin_user), db: Session = Depends(get_db)):
+    check_role_change(me_, body.role)
     if db.scalar(select(User).where(User.username == body.username)):
         raise HTTPException(400, "そのログインIDは既に使われています")
     u = User(username=body.username, display_name=body.display_name.strip(),
@@ -487,8 +512,9 @@ def update_user(uid: int, body: UserUpdateIn, me_: User = Depends(admin_user), d
     u = db.get(User, uid)
     if not u:
         raise HTTPException(404, "見つかりません")
-    if u.id == me_.id and ((body.role and body.role != "admin") or body.active is False):
-        raise HTTPException(400, "自分自身の管理者権限の解除・無効化はできません")
+    check_role_change(me_, body.role, u)
+    if u.id == me_.id and ((body.role and body.role != me_.role) or body.active is False):
+        raise HTTPException(400, "自分自身のロール変更・無効化はできません")
     if body.display_name is not None:
         u.display_name = body.display_name.strip()
     if body.password is not None:
@@ -813,6 +839,6 @@ def page(page: str, request: Request, db: Session = Depends(get_db)):
     user = session_user(request, db)
     if not user:
         return RedirectResponse("/login")
-    if page == "admin" and user.role != "admin":
+    if page == "admin" and user.role not in ADMIN_ROLES:
         return RedirectResponse("/dinner")
     return FileResponse(BASE / "pages" / f"{page.replace('-', '_')}.html")

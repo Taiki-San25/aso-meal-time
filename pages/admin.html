@@ -15,6 +15,7 @@
   .tag.off{background:#eee;color:#888}
   .tag.front{background:#e3effc;color:#185fa5}
   .tag.restaurant{background:#fdf0e1;color:#a55a00}
+  .tag.developer{background:#263238;color:#fff}
   tr.inactive td{color:#aaa}
   .slotGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
   .slotBox{border:1px solid var(--line);border-radius:8px;padding:12px}
@@ -51,7 +52,10 @@
 <script>
 (function () {
   const { esc, api, toast, modal } = AMT;
-  const ROLES = { admin: '管理者', front: 'フロント', restaurant: 'レストラン' };
+  const ROLES = { developer: 'developper', admin: '管理者', front: 'フロント', restaurant: 'レストラン' };
+  let meRole = null;
+  // developper のアカウントは developper のみ作成・編集できる(サーバー側でも制限)
+  const selectableRoles = () => Object.entries(ROLES).filter(([k]) => k !== 'developer' || meRole === 'developer');
   let users = [];
   let meId = null;
 
@@ -64,7 +68,8 @@
         <td>${esc(u.display_name)}${u.id === meId ? ' <span class="muted">(自分)</span>' : ''}</td>
         <td><span class="tag ${u.role}">${ROLES[u.role] || esc(u.role)}</span></td>
         <td>${u.active ? '有効' : '<span class="tag off">無効</span>'}</td>
-        <td style="text-align:right"><button class="btn" data-edit="${u.id}"><i class="ti ti-pencil"></i>編集</button></td>
+        <td style="text-align:right">${u.role === 'developer' && meRole !== 'developer' ? ''
+          : `<button class="btn" data-edit="${u.id}"><i class="ti ti-pencil"></i>編集</button>`}</td>
       </tr>`).join('');
   }
 
@@ -79,7 +84,7 @@
         <label>${isNew ? 'パスワード(4文字以上)' : '新しいパスワード(変更する場合のみ・4文字以上)'}
           <input type="password" name="password" minlength="4" ${isNew ? 'required' : ''} autocomplete="new-password"></label>
         <label>ロール<select name="role" ${self ? 'disabled' : ''}>
-          ${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${(u ? u.role : 'front') === k ? ' selected' : ''}>${v}</option>`).join('')}
+          ${selectableRoles().map(([k, v]) => `<option value="${k}"${(u ? u.role : 'front') === k ? ' selected' : ''}>${v}</option>`).join('')}
         </select></label>
         <p class="muted" style="margin:-6px 0 0;font-size:12px">管理者のみ管理者ページを利用できます。フロント・レストランは管理表とチャットを利用できます。</p>
         ${isNew ? '' : `<label class="check"><input type="checkbox" name="active" ${u.active ? 'checked' : ''} ${self ? 'disabled' : ''}>有効(外すとログインできなくなります)</label>`}
@@ -151,7 +156,7 @@
     api(`/api/slots/${meal}`).then(s => { slots = s; draw(); }).catch(() => {});
   });
 
-  AMT.me.then(me => { meId = me.id; return loadUsers(); }).catch(() => {});
+  AMT.me.then(me => { meId = me.id; meRole = me.role; return loadUsers(); }).catch(() => {});
 })();
 </script>
 </body>

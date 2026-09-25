@@ -25,7 +25,10 @@ engine = create_engine(_db_url(), pool_pre_ping=True)
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 MEALS = ("dinner", "breakfast")
-ROLES = {"admin": "管理者", "front": "フロント", "restaurant": "レストラン"}
+# developer: 最上位ロール(管理者の全権限 + 入場済の操作)
+ROLES = {"developer": "developper", "admin": "管理者", "front": "フロント", "restaurant": "レストラン"}
+ADMIN_ROLES = ("developer", "admin")  # 管理者ページ・管理者APIを使えるロール
+ENTRY_ROLES = ("developer", "restaurant")  # 入場済を操作できるロール
 DEFAULT_SLOTS = {
     "dinner": ["17:30", "18:00", "18:30", "19:00", "19:30", "20:00"],
     "breakfast": ["07:00", "07:30", "08:00", "08:30", "09:00"],
@@ -51,7 +54,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(64))
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(16), default="front")  # ROLES のキー
-    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # role == "admin" と同期(旧列)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)  # role が ADMIN_ROLES か(旧列、同期のみ)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
