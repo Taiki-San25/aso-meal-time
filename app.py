@@ -25,6 +25,7 @@ BASE = Path(__file__).parent
 IS_PROD = bool(os.environ.get("DATABASE_URL"))
 ON_RENDER = bool(os.environ.get("RENDER"))  # Render が自動で設定する
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+INT_MAX = 2_147_483_647  # 人数に上限は設けない(DBの整数型の範囲のみ)
 
 
 def bootstrap_admin() -> None:
@@ -225,14 +226,14 @@ class ReservationIn(BaseModel):
 
     room: str = Field(min_length=1, max_length=32)
     guest_name: str = Field(default="", max_length=128)
-    adults: int = Field(default=0, ge=0, le=99)
-    children: int = Field(default=0, ge=0, le=99)
-    infants: int = Field(default=0, ge=0, le=99)
-    adult_coupon: int = Field(default=0, ge=0, le=99)
-    free_adult: int = Field(default=0, ge=0, le=99)
-    free_child: int = Field(default=0, ge=0, le=99)
-    child_coupon: int = Field(default=0, ge=0, le=99)
-    outside: int = Field(default=0, ge=0, le=99)
+    adults: int = Field(default=0, ge=0, le=INT_MAX)
+    children: int = Field(default=0, ge=0, le=INT_MAX)
+    infants: int = Field(default=0, ge=0, le=INT_MAX)
+    adult_coupon: int = Field(default=0, ge=0, le=INT_MAX)
+    free_adult: int = Field(default=0, ge=0, le=INT_MAX)
+    free_child: int = Field(default=0, ge=0, le=INT_MAX)
+    child_coupon: int = Field(default=0, ge=0, le=INT_MAX)
+    outside: int = Field(default=0, ge=0, le=INT_MAX)
     time_slot: str | None = None
     allergy: str = Field(default="", max_length=2000)
     note: str = Field(default="", max_length=2000)

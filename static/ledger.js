@@ -5,8 +5,6 @@
   const { esc, api, toast, modal } = AMT;
   const REFRESH_MS = 30000;
   const UNSET = '';  // 時間未定
-  const MAX_COUNT = 6;  // フォームで選べる人数の上限(幼児・内訳)
-  const MAX_GUESTS = 20;  // 大人・子供の上限
   const ENTRY_ROLES = ['restaurant', 'developer'];  // 入場済を操作できるロール(サーバー側と同じ)
 
   const pad = n => String(n).padStart(2, '0');
@@ -275,12 +273,9 @@
     r = r || { date: state.date, nights: 1, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '',
       ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, 0])) };
     const dateLabel = d => `${d.replace(/-/g, '/')}(${dow(d)})`;
-    // 人数は 0〜max のプルダウン(既存データが上限超えなら、その値も選択肢に残す)
-    const countSelect = (name, v, extra = '', max = MAX_COUNT) => {
-      const vals = [...Array(max + 1).keys()];
-      if (v > max) vals.push(v);
-      return `<select name="${name}"${extra}>${vals.map(n => `<option value="${n}"${n === v ? ' selected' : ''}>${n}</option>`).join('')}</select>`;
-    };
+    // 人数は 0 以上の整数を入力(上限なし)
+    const countInput = (name, v, extra = '') =>
+      `<input type="number" name="${name}" value="${v ?? 0}" min="0" step="1" inputmode="numeric" required${extra}>`;
     const groups = groupInfo();
     const myGroup = groups[r.group_id];
     const candidates = active().filter(x => x.id !== r.id)
@@ -316,13 +311,13 @@
           <label>代表者名<input type="text" name="guest_name" value="${esc(r.guest_name)}" maxlength="128"></label>
         </div>
         <div class="row">
-          <label>大人${countSelect('adults', r.adults, '', MAX_GUESTS)}</label>
-          <label>子供${countSelect('children', r.children, '', MAX_GUESTS)}</label>
-          <label>幼児${countSelect('infants', r.infants)}</label>
+          <label>大人${countInput('adults', r.adults)}</label>
+          <label>子供${countInput('children', r.children)}</label>
+          <label>幼児${countInput('infants', r.infants)}</label>
         </div>
         <div class="row countRow">
           ${COUNT_FIELDS.map(c => `<label title="${c.full}"><span class="abbrWrap">${countIcon(c)}<span class="abbr">${c.short}</span></span>
-            ${countSelect(c.key, r[c.key] ?? 0, ` aria-label="${c.full}"`)}</label>`).join('')}
+            ${countInput(c.key, r[c.key], ` aria-label="${c.full}"`)}</label>`).join('')}
         </div>
         <label>アレルギー<textarea name="allergy" maxlength="2000">${esc(r.allergy)}</textarea></label>
         <label>備考<textarea name="note" maxlength="2000">${esc(r.note)}</textarea></label>
