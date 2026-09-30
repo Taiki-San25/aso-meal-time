@@ -1,6 +1,7 @@
 import os
 import re
 import secrets
+import hashlib
 import uuid
 from io import BytesIO
 from urllib.parse import quote
@@ -15,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
@@ -91,6 +93,29 @@ async def no_stale_assets(request: Request, call_next):
     if not request.url.path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-cache")
     return response
+
+
+@app.middleware("http")
+async def api_etag(request: Request, call_next):
+    """自動更新(ポーリング)の通信量削減: GET の API 応答に ETag を付け、前回と同じ内容なら 304 で本文を送らない"""
+    response = await call_next(request)
+    if (request.method != "GET" or not request.url.path.startswith("/api/") or response.status_code != 200
+            or not response.headers.get("content-type", "").startswith("application/json")):
+        return response
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    etag = f'W/"{hashlib.md5(body).hexdigest()}"'
+    not_modified = request.headers.get("if-none-match") == etag
+    new = Response(b"" if not_modified else body, status_code=304 if not_modified else 200)
+    # Set-Cookie など同名ヘッダーが複数あっても落とさないよう、元のヘッダーをそのまま引き継ぐ
+    skip = {b"content-length", b"etag", b"cache-control"}
+    new.raw_headers += [(k, v) for k, v in response.raw_headers if k.lower() not in skip]
+    new.headers["ETag"] = etag
+    new.headers["Cache-Control"] = "private, no-cache"  # ブラウザは毎回確認し、未変更なら手元の結果を使う
+    return new
+
+
+# 応答を gzip 圧縮して送る(JSON・JS・CSS・HTML)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
 # ---------- 共通依存 ----------
