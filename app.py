@@ -837,9 +837,19 @@ def operation_logs(start: date, end: date, _: User = Depends(current_user), db: 
 PAGES = {"dinner", "breakfast", "dinner-summary", "breakfast-summary", "chat", "logs", "admin"}
 
 
+def file_response(request: Request, path: Path, **kwargs) -> Response:
+    """ファイルを返す。ブラウザが持っているものと同じなら中身を送らず 304 だけ返す(通信量対策)"""
+    st = path.stat()
+    etag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
+    headers = {"ETag": etag, "Cache-Control": "no-cache", **kwargs.pop("headers", {})}
+    if etag in request.headers.get("if-none-match", ""):
+        return Response(status_code=304, headers=headers)
+    return FileResponse(path, headers=headers, **kwargs)
+
+
 @app.get("/favicon.ico", include_in_schema=False)
-def favicon():
-    return FileResponse(BASE / "static" / "favicon.ico", media_type="image/x-icon")
+def favicon(request: Request):
+    return file_response(request, BASE / "static" / "favicon.ico", media_type="image/x-icon")
 
 
 @app.get("/healthz")
@@ -856,7 +866,7 @@ def root():
 def login_page(request: Request, db: Session = Depends(get_db)):
     if session_user(request, db):
         return RedirectResponse("/dinner")
-    return FileResponse(BASE / "pages" / "login.html")
+    return file_response(request, BASE / "pages" / "login.html")
 
 
 @app.get("/{page}")
@@ -868,4 +878,4 @@ def page(page: str, request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login")
     if page == "admin" and user.role not in ADMIN_ROLES:
         return RedirectResponse("/dinner")
-    return FileResponse(BASE / "pages" / f"{page.replace('-', '_')}.html")
+    return file_response(request, BASE / "pages" / f"{page.replace('-', '_')}.html")
