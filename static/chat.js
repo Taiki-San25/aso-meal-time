@@ -1,7 +1,7 @@
 /* chat.js — フロント・レストラン・管理者の連絡チャット */
 (function () {
   const { esc, api, toast, modal } = AMT;
-  const POLL_MS = 5000;
+  const POLL_MS = 15000;  // 新着の確認間隔(通信量削減のため15秒)
   const MEAL_LABEL = { dinner: '夕食', breakfast: '朝食' };
   const WEEK = '日月火水木金土';
 
