@@ -55,14 +55,15 @@
   function render() {
     const d = state.data;
     $('smTitle').textContent = `${MEAL_LABEL}集計　${slash(d.start)}〜${slash(d.end)}`;
-    $('smHead').innerHTML = `<tr><th>日付</th>${d.columns.map(c => `<th class="num">${esc(c.label)}</th>`).join('')}</tr>`;
+    $('smHead').innerHTML = `<tr><th>日付</th>${d.columns.map(c => `<th class="num">${esc(c.label)}</th>`).join('')}<th class="vipHead">${esc(d.vip_label)}</th></tr>`;
     // 合計行は見出しの直後(2行目)に置く
-    const totalRow = `<tr class="totalRow"><td>合計</td>${d.columns.map(c => `<td class="num">${d.total[c.key]}</td>`).join('')}</tr>`;
+    const totalRow = `<tr class="totalRow"><td>合計</td>${d.columns.map(c => `<td class="num">${d.total[c.key]}</td>`).join('')}<td></td></tr>`;
     $('smBody').innerHTML = totalRow + d.days.map(day => {
       const cls = { 土: 'sat', 日: 'sun' }[day.weekday] || '';
       return `<tr class="${day.groups ? '' : 'zero'}">
         <td class="date ${cls}"><a href="/${MEAL}?d=${day.date}">${+day.date.slice(5, 7)}/${+day.date.slice(8, 10)}(${day.weekday})</a></td>
         ${d.columns.map(c => `<td class="num${c.key === 'total' ? ' strong' : ''}">${day[c.key] || '<span class="z">0</span>'}</td>`).join('')}
+        <td class="vipGuests">${esc(day.vip_guests)}</td>
       </tr>`;
     }).join('');
   }

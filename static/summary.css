@@ -13,6 +13,8 @@
 .sumTable td.sun{color:#c0392b}
 .sumTable td.strong{font-weight:700}
 .sumTable .z{color:#ccc}
+.sumTable th.vipHead{min-width:180px}
+.sumTable td.vipGuests{white-space:normal;min-width:180px;max-width:360px;color:#8a6d00;font-size:12px}
 .sumTable tbody tr:hover td{background:#f7fbff}
 .sumTable tr.totalRow td{font-weight:700;background:#f3f6fa;border-bottom:2px solid #cfdcea;padding:8px 10px}
 .sumTable tbody tr.totalRow:hover td{background:#f3f6fa}

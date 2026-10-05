@@ -660,8 +660,9 @@ SUMMARY_COLS = [
     ("adult_coupon", "大人クーポン(食事付)"), ("child_coupon", "子供クーポン(食事付)"),
     ("free_adult", "フリー大人(生打ち)"), ("free_child", "フリー子供(生打ち)"),
     ("outside", "外来大人"), ("outside_child", "外来子供"),
-    ("entered", "入場済(組)"),
+    ("entered", "入場済(組)"), ("vip", "VIP(組)"),
 ]
+VIP_GUESTS_LABEL = "VIPのお客様"  # 数値列の後ろに置く文字列の列
 SUMMED = ("adults", "children", "infants", "adult_coupon", "child_coupon", "free_adult", "free_child", "outside",
           "outside_child")
 
@@ -676,18 +677,29 @@ def summarize(db: Session, meal: str, start: date, end: date) -> dict:
     rows = db.scalars(select(Reservation).where(
         Reservation.meal == meal, Reservation.date >= start, Reservation.date <= end,
         Reservation.deleted_at.is_(None)))  # 削除済みは集計しない
+    vips = {d: [] for d in days}
     for r in rows:
         a = days[r.date]
+        if r.vip:
+            a["vip"] += 1
+            vips[r.date].append(r)
         a["groups"] += 1
         for k in SUMMED:
             a[k] += getattr(r, k)
         a["total"] += r.adults + r.children + r.infants
         a["entered"] += r.entered_at is not None
+    # VIPのお客様: 時間順(未定は最後)、同じ時間なら部屋番号の数値順
+    room_key = lambda room: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", room)]
+    vip_names = {d: "、".join(f"★{r.room} {r.guest_name}".strip() for r in
+                             sorted(v, key=lambda r: (r.time_slot or "99:99", room_key(r.room))))
+                 for d, v in vips.items()}
     total = {k: sum(a[k] for a in days.values()) for k, _ in SUMMARY_COLS}
     return {
         "meal": meal, "start": start.isoformat(), "end": end.isoformat(),
         "columns": [{"key": k, "label": l} for k, l in SUMMARY_COLS],
-        "days": [{"date": d.isoformat(), "weekday": WEEKDAYS[d.weekday()], **a} for d, a in days.items()],
+        "vip_label": VIP_GUESTS_LABEL,
+        "days": [{"date": d.isoformat(), "weekday": WEEKDAYS[d.weekday()], **a, "vip_guests": vip_names[d]}
+                 for d, a in days.items()],
         "total": total,
     }
 
@@ -713,7 +725,7 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
     ws.append([f"出力日時 {now_jst():%Y/%m/%d %H:%M}(削除済みの予約は除く)"])
     ws["A2"].font = Font(size=9, color="777777")
     ws.append([])
-    head = ["日付", "曜日"] + [l for _, l in SUMMARY_COLS]
+    head = ["日付", "曜日"] + [l for _, l in SUMMARY_COLS] + [VIP_GUESTS_LABEL]
     ws.append(head)
     thin = Side(style="thin", color="BBBBBB")
     border = Border(top=thin, bottom=thin, left=thin, right=thin)
@@ -723,13 +735,13 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         c.border = border
     # 合計行は見出しの直後(5行目)
-    ws.append(["合計", ""] + [data["total"][k] for k, _ in SUMMARY_COLS])
+    ws.append(["合計", ""] + [data["total"][k] for k, _ in SUMMARY_COLS] + [""])
     for c in ws[ws.max_row]:
         c.font = Font(bold=True)
         c.fill = PatternFill("solid", fgColor="F2F2F2")
         c.border = Border(top=thin, left=thin, right=thin, bottom=Side(style="medium", color="8FA9C4"))
     for d in data["days"]:
-        ws.append([date.fromisoformat(d["date"]), d["weekday"]] + [d[k] for k, _ in SUMMARY_COLS])
+        ws.append([date.fromisoformat(d["date"]), d["weekday"]] + [d[k] for k, _ in SUMMARY_COLS] + [d["vip_guests"]])
         row = ws[ws.max_row]
         row[0].number_format = "yyyy/mm/dd"
         color = {"土": "185FA5", "日": "C0392B"}.get(d["weekday"])
@@ -741,6 +753,10 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
     ws.column_dimensions["B"].width = 5
     for i in range(3, len(head) + 1):
         ws.column_dimensions[ws.cell(row=4, column=i).column_letter].width = 11
+    vip_col = ws.cell(row=4, column=len(head)).column_letter
+    ws.column_dimensions[vip_col].width = 40
+    for c in ws[vip_col][4:]:
+        c.alignment = Alignment(wrap_text=True, vertical="top")
     ws.row_dimensions[4].height = 32
     ws.freeze_panes = "C6"  # 見出しと合計行を固定
     ws.page_setup.orientation = "landscape"
