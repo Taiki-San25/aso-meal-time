@@ -150,7 +150,7 @@ body.sbCollapsed #mainContent{margin-left:60px}
 .form{display:grid;gap:12px}
 .form label{display:grid;gap:4px;font-size:12px;color:#555}
 .form .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:12px}
-.form .countRow{grid-template-columns:repeat(5,minmax(0,1fr))}
+.form .countRow{grid-template-columns:repeat(6,minmax(0,1fr))}
 .form .countRow .abbr{text-decoration:underline dotted #aaa;text-underline-offset:3px;cursor:help;white-space:nowrap}
 @media (max-width:640px){.form .countRow{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .form .check{display:flex;align-items:center;gap:6px;font-size:13px;color:#333}

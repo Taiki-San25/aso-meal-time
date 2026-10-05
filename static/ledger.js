@@ -31,13 +31,14 @@
   ];
 
   // 人数の内訳(フォームでは略称、ホバーで正式名称)
-  // icon: 大人=人 / 子供=子供の顔 / 外来=ドア、kind: 色分け(cp=クーポン, free=フリー, out=外来)
+  // icon: 大人=人 / 子供=子供の顔、kind: 色分け(cp=クーポン, free=フリー, out=外来)
   const COUNT_FIELDS = [
     { key: 'adult_coupon', short: '大人CP', full: '大人クーポン(食事付)', icon: 'ti-user', kind: 'cp' },
-    { key: 'free_adult', short: 'フリー大', full: 'フリー大人(生打ち)', icon: 'ti-user', kind: 'free' },
     { key: 'child_coupon', short: '子供CP', full: '子供クーポン(食事付)', icon: 'ti-mood-kid', kind: 'cp' },
-    { key: 'free_child', short: 'フリー子', full: 'フリー子供(生打ち)', icon: 'ti-mood-kid', kind: 'free' },
-    { key: 'outside', short: '外来', full: '外来', icon: 'ti-door-enter', kind: 'out' },
+    { key: 'free_adult', short: 'フリー大人', full: 'フリー大人(生打ち)', icon: 'ti-user', kind: 'free' },
+    { key: 'free_child', short: 'フリー子供', full: 'フリー子供(生打ち)', icon: 'ti-mood-kid', kind: 'free' },
+    { key: 'outside', short: '外来大人', full: '外来大人', icon: 'ti-user', kind: 'out' },
+    { key: 'outside_child', short: '外来子供', full: '外来子供', icon: 'ti-mood-kid', kind: 'out' },
   ];
   const countIcon = (c, withTitle = true) => `<span class="cntIcon ${c.kind}"${withTitle ? ` title="${c.full}"` : ''} aria-label="${c.full}" role="img"><i class="ti ${c.icon}"></i></span>`;
   // 数が1以上の内訳項目をアイコンで表示(数は出さない)

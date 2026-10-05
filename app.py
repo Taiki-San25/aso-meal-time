@@ -259,6 +259,7 @@ class ReservationIn(BaseModel):
     free_child: int = Field(default=0, ge=0, le=INT_MAX)
     child_coupon: int = Field(default=0, ge=0, le=INT_MAX)
     outside: int = Field(default=0, ge=0, le=INT_MAX)
+    outside_child: int = Field(default=0, ge=0, le=INT_MAX)
     time_slot: str | None = None
     allergy: str = Field(default="", max_length=2000)
     note: str = Field(default="", max_length=2000)
@@ -281,7 +282,7 @@ class TimeSlotIn(BaseModel):
 
 
 TRACKED = ("date", "nights", "night_no", "time_slot", "room", "guest_name", "adults", "children", "infants",
-           "adult_coupon", "free_adult", "free_child", "child_coupon", "outside", "allergy", "note", "group_id", "entered_at")
+           "adult_coupon", "child_coupon", "free_adult", "free_child", "outside", "outside_child", "allergy", "note", "group_id", "entered_at")
 GROUP_FIELDS = {"grouped", "group_with"}
 
 
@@ -655,11 +656,13 @@ WEEKDAYS = "月火水木金土日"
 # (キー, 見出し) — 画面と Excel の列順
 SUMMARY_COLS = [
     ("groups", "組数"), ("adults", "大人"), ("children", "子供"), ("infants", "幼児"), ("total", "計"),
-    ("adult_coupon", "大人クーポン(食事付)"), ("free_adult", "フリー大人(生打ち)"),
-    ("child_coupon", "子供クーポン(食事付)"), ("free_child", "フリー子供(生打ち)"), ("outside", "外来"),
+    ("adult_coupon", "大人クーポン(食事付)"), ("child_coupon", "子供クーポン(食事付)"),
+    ("free_adult", "フリー大人(生打ち)"), ("free_child", "フリー子供(生打ち)"),
+    ("outside", "外来大人"), ("outside_child", "外来子供"),
     ("entered", "入場済(組)"),
 ]
-SUMMED = ("adults", "children", "infants", "adult_coupon", "free_adult", "child_coupon", "free_child", "outside")
+SUMMED = ("adults", "children", "infants", "adult_coupon", "child_coupon", "free_adult", "free_child", "outside",
+          "outside_child")
 
 
 def summarize(db: Session, meal: str, start: date, end: date) -> dict:
@@ -758,7 +761,7 @@ FIELD_LABELS = {
     "date": "日付", "nights": "泊数", "night_no": "何泊目", "time_slot": "時間", "room": "部屋",
     "guest_name": "代表者名", "adults": "大人", "children": "子供", "infants": "幼児",
     "adult_coupon": "大人クーポン(食事付)", "free_adult": "フリー大人(生打ち)",
-    "child_coupon": "子供クーポン(食事付)", "free_child": "フリー子供(生打ち)", "outside": "外来",
+    "child_coupon": "子供クーポン(食事付)", "free_child": "フリー子供(生打ち)", "outside": "外来大人", "outside_child": "外来子供",
     "allergy": "アレルギー", "note": "備考", "group_id": "グループ", "entered_at": "ステータス",
 }
 RES_ACTIONS = {"create": "登録", "update": "変更", "delete": "削除", "restore": "復元"}
