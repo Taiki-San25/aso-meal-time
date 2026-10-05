@@ -20,12 +20,12 @@
     { key: 'status', label: 'ステータス', val: r => (r.entered_at ? 1 : 0) },
     { key: 'room', label: '部屋', val: byText('room') },
     { key: 'guest_name', label: '代表者名', val: byText('guest_name') },
-    { key: 'nights', label: '泊数', val: r => r.nights * 100 + r.night_no },
+    { key: 'allergy', label: 'アレルギー', val: byText('allergy') },
     { key: 'adults', label: '大人', num: true, val: r => r.adults },
     { key: 'children', label: '子供', num: true, val: r => r.children },
     { key: 'infants', label: '幼児', num: true, val: r => r.infants },
     { key: 'total', label: '計', num: true, val: r => r.adults + r.children + r.infants },
-    { key: 'allergy', label: 'アレルギー', val: byText('allergy') },
+    { key: 'nights', label: '泊数', val: r => r.nights * 100 + r.night_no },
     { key: 'note', label: '備考', val: byText('note') },
     { key: 'updated', label: '更新', cls: 'noPrint', firstDir: -1, val: r => (r.deleted ? r.deleted_at : r.updated_at) || '' },
   ];
@@ -249,10 +249,10 @@
         <td class="status">${statusCell(r)}</td>
         <td class="room">${esc(r.room)}${groupTag(groups[r.group_id])}</td>
         <td class="guest">${r.vip ? '<span class="vipStar" title="VIP" aria-label="VIP">★</span>' : ''}${esc(r.guest_name)}${countBadges(r)}</td>
-        <td class="nights">${nightsLabel(r)}</td>
+        <td class="allergyCell">${r.allergy ? `<span class="allergy"><i class="ti ti-alert-triangle"></i>${esc(r.allergy)}</span>` : ''}</td>
         <td class="num">${r.adults}</td><td class="num">${r.children}</td><td class="num">${r.infants}</td>
         <td class="num"><b>${total(r)}</b></td>
-        <td class="allergyCell">${r.allergy ? `<span class="allergy"><i class="ti ti-alert-triangle"></i>${esc(r.allergy)}</span>` : ''}</td>
+        <td class="nights">${nightsLabel(r)}</td>
         <td class="note">${esc(r.note)}</td>
         <td class="noPrint upd">${r.deleted
           ? `削除 ${fmtTs(r.deleted_at)}<br>${esc(r.deleted_by)}`
