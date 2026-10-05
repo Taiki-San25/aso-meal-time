@@ -55,6 +55,7 @@
     q: '',
     sort: { key: 'time', dir: 1 },  // dir: 1=昇順 -1=降順
     showDeleted: false,
+    vipOnly: false,  // 一覧をVIPだけに絞り込む
     role: null,  // ログイン中のロール(入場済の操作はレストランのみ)
   };
 
@@ -69,6 +70,7 @@
       </div>
       <input type="search" id="ldSearch" placeholder="部屋・名前・備考で検索" aria-label="検索">
       <label class="delToggle"><input type="checkbox" id="ldShowDeleted">削除済みも表示</label>
+      <label class="delToggle"><input type="checkbox" id="ldVipOnly"><span class="vipStar">★</span>VIPのみ</label>
       <div class="barRight">
         <button class="btn" data-act="print"><i class="ti ti-printer"></i>印刷</button>
         <button class="btn primary" data-act="add"><i class="ti ti-plus"></i>追加</button>
@@ -154,6 +156,7 @@
     const q = state.q.trim().toLowerCase();
     let rows = state.rows;
     if (q) rows = rows.filter(r => [r.room, r.guest_name, r.allergy, r.note].some(v => v.toLowerCase().includes(q)));
+    if (state.vipOnly) rows = rows.filter(r => r.vip);
     const col = COLUMNS.find(c => c.key === state.sort.key);
     const { dir } = state.sort;
     const cmp = (x, y) => typeof x === 'number' ? x - y : x.localeCompare(y, 'ja', { numeric: true });
@@ -229,7 +232,7 @@
     const rows = visibleRows();
     const tbody = $('ldBody');
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="12" class="empty">${state.rows.length ? '該当する予約はありません' : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="12" class="empty">${state.rows.length ? (state.vipOnly && !state.rows.some(r => r.vip) ? 'この日のVIPの予約はありません' : '該当する予約はありません') : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
       return;
     }
     let prevSlot = null;
@@ -482,6 +485,7 @@
     render();
   });
   $('ldShowDeleted').addEventListener('change', e => { state.showDeleted = e.target.checked; loadRows().catch(() => {}); });
+  $('ldVipOnly').addEventListener('change', e => { state.vipOnly = e.target.checked; render(); });
 
   const tbody = $('ldBody');
   tbody.addEventListener('change', async e => {
