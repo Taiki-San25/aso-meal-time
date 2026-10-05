@@ -102,6 +102,7 @@ class Reservation(Base):
     date: Mapped[date] = mapped_column(Date, index=True)
     room: Mapped[str] = mapped_column(String(32))
     guest_name: Mapped[str] = mapped_column(String(128))
+    vip: Mapped[bool] = mapped_column(Boolean, default=False)  # VIPゲスト(一覧で★表示)
     adults: Mapped[int] = mapped_column(Integer, default=0)
     children: Mapped[int] = mapped_column(Integer, default=0)
     infants: Mapped[int] = mapped_column(Integer, default=0)
@@ -155,6 +156,7 @@ ADDED_COLUMNS = [
     ("reservations", "child_coupon", "INTEGER NOT NULL DEFAULT 0", None),
     ("reservations", "outside", "INTEGER NOT NULL DEFAULT 0", None),
     ("reservations", "outside_child", "INTEGER NOT NULL DEFAULT 0", None),
+    ("reservations", "vip", "BOOLEAN NOT NULL DEFAULT FALSE", None),
 ]
 
 

@@ -69,6 +69,11 @@ body.dayFuture{background:rgba(227,238,250,.5)}
 .cntBadges{display:inline-flex;gap:3px;margin-left:6px;vertical-align:-3px}
 .ledgerTable tbody tr.deleted .cntIcon{background:#eee;color:#aaa;border-color:#ccc}
 .abbrWrap{display:inline-flex;align-items:center;gap:4px}
+.vipStar{color:#d4a017;font-size:14px;margin-right:3px;cursor:help}
+.vipCheck{margin-top:-4px}
+.vipCheck .vipStar{cursor:default}
+.ledgerTable tbody tr.deleted .vipStar{color:#bbb}
+@media print{.vipStar{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 .ledgerTable td.status{white-space:nowrap}
 .entChk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#555;cursor:pointer;
   padding:3px 8px 3px 6px;border:1px solid #ddd;border-radius:6px;background:#fff}

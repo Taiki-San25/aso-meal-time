@@ -260,6 +260,7 @@ class ReservationIn(BaseModel):
     child_coupon: int = Field(default=0, ge=0, le=INT_MAX)
     outside: int = Field(default=0, ge=0, le=INT_MAX)
     outside_child: int = Field(default=0, ge=0, le=INT_MAX)
+    vip: bool = False
     time_slot: str | None = None
     allergy: str = Field(default="", max_length=2000)
     note: str = Field(default="", max_length=2000)
@@ -282,7 +283,7 @@ class TimeSlotIn(BaseModel):
 
 
 TRACKED = ("date", "nights", "night_no", "time_slot", "room", "guest_name", "adults", "children", "infants",
-           "adult_coupon", "child_coupon", "free_adult", "free_child", "outside", "outside_child", "allergy", "note", "group_id", "entered_at")
+           "adult_coupon", "child_coupon", "free_adult", "free_child", "outside", "outside_child", "vip", "allergy", "note", "group_id", "entered_at")
 GROUP_FIELDS = {"grouped", "group_with"}
 
 
@@ -761,7 +762,7 @@ FIELD_LABELS = {
     "date": "日付", "nights": "泊数", "night_no": "何泊目", "time_slot": "時間", "room": "部屋",
     "guest_name": "代表者名", "adults": "大人", "children": "子供", "infants": "幼児",
     "adult_coupon": "大人クーポン(食事付)", "free_adult": "フリー大人(生打ち)",
-    "child_coupon": "子供クーポン(食事付)", "free_child": "フリー子供(生打ち)", "outside": "外来大人", "outside_child": "外来子供",
+    "child_coupon": "子供クーポン(食事付)", "free_child": "フリー子供(生打ち)", "outside": "外来大人", "outside_child": "外来子供", "vip": "VIP",
     "allergy": "アレルギー", "note": "備考", "group_id": "グループ", "entered_at": "ステータス",
 }
 RES_ACTIONS = {"create": "登録", "update": "変更", "delete": "削除", "restore": "復元"}
@@ -773,7 +774,7 @@ LOG_MAX_DAYS = 93
 def fmt_value(field: str, v) -> str:
     if field == "time_slot":
         return v or "未定"
-    if field == "group_id":
+    if field in ("group_id", "vip"):
         return "あり" if v else "なし"
     if field == "entered_at":
         return "入場済" if v else "空白"

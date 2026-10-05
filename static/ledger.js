@@ -127,11 +127,11 @@
     return `${y === String(new Date().getFullYear()) ? '' : y + '/'}${+mo}/${+da} ${t.slice(0, 5)}`;
   };
   const FIELD_LABELS = { date: '日付', time_slot: '時間', room: '部屋', guest_name: '代表者名', adults: '大人',
-    children: '子供', infants: '幼児', ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, c.full])), nights: '泊数', night_no: '何泊目', group_id: 'グループ', entered_at: 'ステータス', allergy: 'アレルギー', note: '備考' };
+    children: '子供', infants: '幼児', ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, c.full])), nights: '泊数', night_no: '何泊目', group_id: 'グループ', vip: 'VIP', entered_at: 'ステータス', allergy: 'アレルギー', note: '備考' };
   const nightsLabel = r => `${r.night_no}泊/${r.nights}泊`;
   const ACTION_LABELS = { create: '登録', update: '変更', delete: '削除', restore: '復元' };
   const fmtVal = (f, v) => f === 'time_slot' ? (v || '未定')
-    : f === 'group_id' ? (v ? 'あり' : 'なし')
+    : f === 'group_id' || f === 'vip' ? (v ? 'あり' : 'なし')
     : f === 'entered_at' ? (v ? `入場済(${fmtTs(v)})` : '空白')
     : (v === '' || v === null ? '(空欄)' : String(v));
 
@@ -245,7 +245,7 @@
           <span class="printOnly">${r.time_slot || '未定'}</span>`}</td>
         <td class="status">${statusCell(r)}</td>
         <td class="room">${esc(r.room)}${groupTag(groups[r.group_id])}</td>
-        <td class="guest">${esc(r.guest_name)}${countBadges(r)}</td>
+        <td class="guest">${r.vip ? '<span class="vipStar" title="VIP" aria-label="VIP">★</span>' : ''}${esc(r.guest_name)}${countBadges(r)}</td>
         <td class="nights">${nightsLabel(r)}</td>
         <td class="num">${r.adults}</td><td class="num">${r.children}</td><td class="num">${r.infants}</td>
         <td class="num"><b>${total(r)}</b></td>
@@ -271,7 +271,7 @@
   function openForm(r) {
     const isNew = !r;
     if (r && r.deleted) return openDeleted(r);
-    r = r || { date: state.date, nights: 1, room: '', guest_name: '', adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '',
+    r = r || { date: state.date, nights: 1, room: '', guest_name: '', vip: false, adults: 2, children: 0, infants: 0, time_slot: null, allergy: '', note: '',
       ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, 0])) };
     const dateLabel = d => `${d.replace(/-/g, '/')}(${dow(d)})`;
     // 人数は 0 以上の整数を入力(上限なし)
@@ -311,6 +311,7 @@
           <label>部屋番号<input type="text" name="room" value="${esc(r.room)}" required maxlength="32"></label>
           <label>代表者名<input type="text" name="guest_name" value="${esc(r.guest_name)}" maxlength="128"></label>
         </div>
+        <label class="check vipCheck"><input type="checkbox" name="vip" ${r.vip ? 'checked' : ''}><span class="vipStar">★</span>VIPとして登録</label>
         <div class="row">
           <label>大人${countInput('adults', r.adults)}</label>
           <label>子供${countInput('children', r.children)}</label>
@@ -341,7 +342,7 @@
             }))) { f.time_slot.focus(); return false; }
             const body = {
               time_slot: f.time_slot.value || null,
-              room: f.room.value, guest_name: f.guest_name.value,
+              room: f.room.value, guest_name: f.guest_name.value, vip: f.vip.checked,
               adults: +f.adults.value, children: +f.children.value, infants: +f.infants.value,
               ...Object.fromEntries(COUNT_FIELDS.map(c => [c.key, +f[c.key].value])),
               allergy: f.allergy.value, note: f.note.value,
@@ -416,7 +417,7 @@
       wide: true,
       body: `<div class="readonly">
         ${item('日付', r.date.replace(/-/g, '/'))}${item('時間', r.time_slot || '未定')}
-        ${item('部屋番号', r.room)}${item('代表者名', r.guest_name)}
+        ${item('部屋番号', r.room)}${item('代表者名', (r.vip ? '★VIP ' : '') + r.guest_name)}
         ${item('泊数', r.nights > 1 ? `${r.nights}泊(${r.night_no}泊目)` : '1泊')}
         ${item('人数', `大人${r.adults} 子供${r.children} 幼児${r.infants}(計${total(r)})`)}
         ${item('内訳', COUNT_FIELDS.filter(c => r[c.key]).map(c => `${c.full} ${r[c.key]}`).join('　'))}
