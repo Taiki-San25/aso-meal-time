@@ -38,59 +38,56 @@ body{margin:0;font-family:sans-serif;color:var(--text);background:#fff}
   padding:0 14px;overflow:hidden;white-space:nowrap}
 .ticker span{overflow:hidden;text-overflow:ellipsis}
 
-/* ---------- サイドバー ---------- */
+/* ---------- サイドバー(hotel-system と同じ作り: 大分類のアイコン＋短い名前。マウスを合わせると横に中分類の小窓) ---------- */
 #sidebar{
-  position:fixed;top:53px;left:0;bottom:0;width:220px;transition:width 0.15s;z-index:99;
+  position:fixed;top:53px;left:0;bottom:0;width:62px;z-index:99;
   background:#f7f6f2;border-right:1px solid #ddd;overflow-y:auto;overflow-x:hidden;
   display:flex;flex-direction:column;justify-content:space-between;
 }
-#accountRow{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid #ddd}
+#sidebar .sbTop{display:flex;flex-direction:column;min-height:100%}
+#accountRow{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 0;border:0;border-bottom:1px solid #ddd;background:transparent;width:100%;font:inherit;cursor:pointer}
+#accountRow:hover .avatar,#accountRow[aria-expanded="true"] .avatar{outline:2px solid #185fa5;outline-offset:2px}
+#accountRow:focus-visible{outline:2px solid #185fa5;outline-offset:-2px}
 #accountRow .avatar{width:28px;height:28px;border-radius:50%;background:#e6f1fb;color:#185fa5;
   font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-#accountRow .userName{font-size:13px;color:#1a1a1a;flex:1;min-width:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#collapseBtn{width:28px;height:28px;border-radius:50%;background:#e6f1fb;border:none;padding:0;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-#collapseBtn i{font-size:15px;color:#185fa5}
+#accountRow .userName{display:none;font-size:13px;color:#1a1a1a;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+#accountMenu{position:fixed;z-index:130;width:220px;background:#fff;border:1px solid #d9dde3;border-radius:10px;box-shadow:0 6px 20px rgba(20,30,40,.14);padding:10px;display:grid;gap:2px}
+#accountMenu[hidden]{display:none}
+#accountMenu .amName{font-weight:700;font-size:14px}
+#accountMenu .amRole{font-size:12px;color:#555;margin-bottom:6px}
+#accountMenu .amItem{display:flex;align-items:center;gap:6px;width:100%;border:0;background:transparent;border-radius:6px;padding:8px;font:inherit;font-size:13px;color:#185fa5;cursor:pointer;text-align:left}
+#accountMenu .amItem:hover,#accountMenu .amItem:focus-visible{background:#e6f1fb;outline:none}
 
-.navGroup{padding:10px 0}
-a.navRow{display:flex;align-items:center;gap:10px;padding:0 18px;height:40.5px;font-size:14px;
+.railNav{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;flex:1}
+.railCat{position:relative;width:54px;min-height:52px;padding:6px 2px 5px;border:0;border-radius:8px;background:transparent;color:#444;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:inherit}
+.railCat i{font-size:20px}
+.railCat small{font-size:12px;line-height:1.15;text-align:center;letter-spacing:-.04em}
+.railCat:hover,.railCat.open{background:#e6f1fb;color:#185fa5}
+.railCat:focus-visible{outline:2px solid #185fa5;outline-offset:-2px}
+.railCat.cur{color:#185fa5;font-weight:600}
+.railCat.cur::before{content:"";position:absolute;left:-4px;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:#185fa5}
+.railCat.unread::after{content:"";position:absolute;top:7px;right:13px;width:8px;height:8px;border-radius:50%;background:#d93025;border:1.5px solid #f7f6f2}
+.railGap{flex:1;min-height:12px;width:40px;border-bottom:1px solid #ddd;margin-bottom:6px}
+.railPop{position:fixed;left:66px;z-index:120;min-width:200px;max-width:280px;background:#fff;border:1px solid #d9dde3;border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px 0}
+.railPop[hidden]{display:none}
+.railPopTitle{font-size:11px;color:#666;font-weight:600;padding:4px 14px 6px}
+.railPop a.navRow{height:36px;padding:0 14px}
+.drawerNav{display:none;padding:6px 0 10px}
+
+a.navRow{position:relative;display:flex;align-items:center;gap:10px;padding:0 18px;height:40.5px;font-size:14px;
   color:#1a1a1a;background:transparent;font-weight:400;text-decoration:none;white-space:nowrap}
 a.navRow i{font-size:18px;flex-shrink:0}
 a.navRow .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-a.navRow:not(.navRowActive):hover{box-shadow:inset 3px 0 0 0 #b5d4f4}
+a.navRow:not(.navRowActive):hover{box-shadow:inset 3px 0 0 0 #b5d4f4;background:#f5f8fc}
 a.navRow.navRowActive{color:#185fa5;background:#e6f1fb;font-weight:500}
 a.navRow.navRowActive.adminPage{background:#f0e6fb}
-
-.navHeading{font-size:11px;color:#999;padding:0 18px;margin:14px 0 4px;cursor:pointer;
-  display:flex;align-items:center;justify-content:space-between;user-select:none;white-space:nowrap}
-.navHeading i{font-size:12px;transition:transform 0.15s}
-.navHeading.closed i{transform:rotate(-90deg)}
-.navSection.closed{display:none}
-
-.navBottom{padding:0 0 10px}
-.navBottom a.navRow{height:auto;padding:9.72px 18px;font-size:13px;color:#333}
-.navBottom a.navRow i{font-size:17px}
-.navBottom a.navRow.navRowActive{color:#185fa5}
-
-.badge{margin-left:auto;background:#d64545;color:#fff;font-size:10px;font-weight:700;
-  border-radius:999px;padding:1px 7px;line-height:1.4}
-
-/* 格納時 */
-body.sbCollapsed #sidebar{width:60px}
-body.sbCollapsed #accountRow{justify-content:center;padding:12px 0}
-body.sbCollapsed #accountRow .avatar,
-body.sbCollapsed #accountRow .userName,
-body.sbCollapsed a.navRow .lbl,
-body.sbCollapsed .navHeading{display:none}
-body.sbCollapsed .navSection.closed{display:block}
-/* 格納時の未読バッジはアイコン右上に小さく */
-a.navRow{position:relative}
-body.sbCollapsed a.navRow .badge{position:absolute;top:4px;left:30px;font-size:9px;padding:0 5px}
+.navHeading{font-size:11px;color:#666;padding:0 18px;margin:12px 0 4px;user-select:none;white-space:nowrap}
+.navRow .navCnt{margin-left:auto;flex:0 0 auto;font-size:11px;min-width:18px;text-align:center;background:#d93025;color:#fff;font-weight:700;border-radius:999px;padding:0 5px;font-variant-numeric:tabular-nums}
 
 /* ---------- メイン ---------- */
-#mainContent{margin-left:220px;margin-top:53px;padding:12px 32px 24px;transition:margin-left 0.15s}
-body.sbCollapsed #mainContent{margin-left:60px}
+#mainContent{margin-left:62px;margin-top:53px;padding:12px 32px 24px}
 
 #drawerBackdrop{display:none}
 
@@ -104,26 +101,21 @@ body.sbCollapsed #mainContent{margin-left:60px}
 }
 @media (max-width:640px){
   #hamburger{display:flex}
-  #collapseBtn{display:none}
+  .railNav,.railPop{display:none !important}
+  .drawerNav{display:block}
+  #accountRow{justify-content:flex-start;padding:12px 14px}
+  #accountRow .userName{display:block}
   #topbar .tbLeft{gap:8px}
   #topbar .tbLogo{font-size:18px}
   #topbar .tbFavicon,#topbar .tbFaviconPh{width:32px;height:32px}
   .pillBtn .btnLbl{display:none}
   .ticker{display:none}
-  #sidebar,body.sbCollapsed #sidebar{
+  #sidebar{
     width:240px;transform:translateX(-100%);transition:transform 0.2s;
     box-shadow:2px 0 12px rgba(0,0,0,0.15);
   }
   body.drawerOpen #sidebar{transform:translateX(0)}
-  /* ドロワーでは格納状態を無視して常にラベル表示 */
-  body.sbCollapsed #accountRow{justify-content:flex-start;padding:12px 14px}
-  body.sbCollapsed #accountRow .avatar,body.sbCollapsed #accountRow .userName{display:flex}
-  body.sbCollapsed #accountRow .userName{display:block}
-  body.sbCollapsed a.navRow .lbl{display:block}
-  body.sbCollapsed a.navRow .badge{position:static;font-size:10px;padding:1px 7px}
-  body.sbCollapsed .navHeading{display:flex}
-  body.sbCollapsed .navSection.closed{display:none}
-  #mainContent,body.sbCollapsed #mainContent{margin-left:0;padding:10px 14px 18px}
+  #mainContent{margin-left:0;padding:10px 14px 18px}
   body.drawerOpen #drawerBackdrop{display:block;position:fixed;inset:53px 0 0 0;z-index:98;background:transparent}
 }
 
@@ -189,7 +181,7 @@ table.grid td.num,table.grid th.num{text-align:right;font-variant-numeric:tabula
 
 @media print{
   #topbar,#sidebar,#drawerBackdrop,.noPrint,#toast{display:none !important}
-  #mainContent,body.sbCollapsed #mainContent{margin:0;padding:0}
+  #mainContent{margin:0;padding:0}
   .tableWrap{overflow:visible;border:none}
   table.grid th{position:static}
 }
