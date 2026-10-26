@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, UnitPrice, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
+from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, PriceLog, UnitPrice, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
                 User, init_db, now_jst)
 from security import hash_password, verify_password
 
@@ -843,14 +843,17 @@ def put_prices(body: PricesIn, user: User = Depends(admin_user), db: Session = D
     for item, price in body.prices.items():
         same_day = db.scalar(select(UnitPrice).where(UnitPrice.meal == body.meal, UnitPrice.item == item,
                                                      UnitPrice.effective_from == body.effective_from))
+        old = same_day.price if same_day else before[item]
+        if old == price:
+            continue
         if same_day:
-            if same_day.price != price:
-                same_day.price, same_day.created_by, same_day.created_at = price, user.id, now_jst()
-                changed += 1
-        elif before[item] != price:
+            same_day.price, same_day.created_by, same_day.created_at = price, user.id, now_jst()
+        else:
             db.add(UnitPrice(meal=body.meal, item=item, price=price, effective_from=body.effective_from,
                              created_by=user.id))
-            changed += 1
+        db.add(PriceLog(user_id=user.id, meal=body.meal, item=item, old_price=old, new_price=price,
+                        effective_from=body.effective_from))
+        changed += 1
     db.commit()
     return {"changed": changed}
 
@@ -1038,6 +1041,14 @@ def operation_logs(start: date, end: date, _: User = Depends(current_user), db: 
                      "action": AUTH_ACTIONS.get(a.action, a.action), "target": "", "link": "",
                      "detail": f"ログインID: {a.username}" if a.action == "login_failed" else "",
                      "failed": a.action == "login_failed", **who(a.user_id, a.username)})
+    # 店舗マスタ(単価変更)
+    price_labels = dict(PRICE_ITEMS)
+    yen = lambda n: "―" if n is None else f"{n:,}円"
+    for p in db.scalars(select(PriceLog).where(PriceLog.at >= t0, PriceLog.at < t1)):
+        logs.append({"_id": p.id, "at": iso(p.at), "kind": "master", "kind_label": "店舗マスタ", "action": "単価変更",
+                     "target": f"{MEAL_LABELS.get(p.meal, '')} {price_labels.get(p.item, p.item)}", "link": "/store-master",
+                     "detail": f"{yen(p.old_price)} → {yen(p.new_price)}({p.effective_from:%Y/%m/%d}〜)",
+                     **who(p.user_id)})
     # 同じ秒の操作は記録順(各テーブルのID順)で並べる
     logs.sort(key=lambda x: (x["at"], x.pop("_id")), reverse=True)
     return logs

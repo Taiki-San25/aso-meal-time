@@ -87,6 +87,19 @@ class ChatRead(Base):
     last_read_id: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class PriceLog(Base):
+    """単価変更の記録(操作ログ用・追記のみ)"""
+    __tablename__ = "price_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=now_jst, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    meal: Mapped[str] = mapped_column(String(16))
+    item: Mapped[str] = mapped_column(String(32))
+    old_price: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None = 記録なし(取り込み分)
+    new_price: Mapped[int] = mapped_column(Integer)
+    effective_from: Mapped[date] = mapped_column(Date)
+
+
 class UnitPrice(Base):
     """店舗マスタの単価(区分・項目ごと、適用開始日つき。その日に有効なのは適用開始日が最も新しいもの)"""
     __tablename__ = "unit_prices"
@@ -189,4 +202,9 @@ def init_db() -> None:
         for meal in MEALS:
             if s.scalar(select(func.count()).select_from(TimeSlot).where(TimeSlot.meal == meal)) == 0:
                 s.add_all(TimeSlot(meal=meal, label=l, sort=i) for i, l in enumerate(DEFAULT_SLOTS[meal]))
+        # 操作ログの記録を始める前に登録済みの単価を、一度だけ取り込む(変更前の金額は記録がないので空)
+        if not s.scalar(select(func.count()).select_from(PriceLog)):
+            s.add_all(PriceLog(at=p.created_at, user_id=p.created_by, meal=p.meal, item=p.item, old_price=None,
+                               new_price=p.price, effective_from=p.effective_from)
+                      for p in s.scalars(select(UnitPrice)))
         s.commit()

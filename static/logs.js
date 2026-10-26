@@ -28,6 +28,7 @@
         <option value="reservation">予約</option>
         <option value="chat">チャット</option>
         <option value="auth">ログイン</option>
+        <option value="master">店舗マスタ</option>
       </select>
       <input type="search" id="lgQ" placeholder="部屋・名前・操作者・内容で検索" aria-label="キーワード">
       <button class="btn" data-act="reload" title="最新の状態に更新"><i class="ti ti-refresh"></i>更新</button>
