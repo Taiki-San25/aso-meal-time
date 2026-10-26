@@ -5,7 +5,7 @@
   const { esc, api, toast, modal } = AMT;
   const GRID = 20;  // マス目(見取り図の単位)
   const snap = v => Math.round(v / GRID) * GRID;
-  const SIZES = {  // 追加するときの大きさ・席数
+  const SIZES = {  // 追加するときの大きさ・席数(テーブルの大きさは「初期サイズ」で変更でき、サーバーの設定で上書きする)
     round: { w: 80, h: 80, seats: 4 }, square: { w: 80, h: 80, seats: 4 }, rect: { w: 160, h: 80, seats: 6 },
     label: { w: 120, h: 40, seats: 0 },
   };
@@ -20,6 +20,7 @@
       <button class="btn" data-add="rect"><i class="ti ti-rectangle"></i>長方形テーブル</button>
       <button class="btn" data-add="label"><i class="ti ti-tag"></i>目印</button>
       <button class="btn" data-act="bulk"><i class="ti ti-layout-grid-add"></i>まとめて追加</button>
+      <button class="btn" data-act="sizes"><i class="ti ti-dimensions"></i>初期サイズ</button>
       <span class="sep"></span>
       <span class="zoomBox"><button class="iconBtn" data-zoom="-1" aria-label="縮小"><i class="ti ti-zoom-out"></i></button><span id="leZoom"></span><button class="iconBtn" data-zoom="1" aria-label="拡大"><i class="ti ti-zoom-in"></i></button></span>
       <div class="barRight">
@@ -39,10 +40,14 @@
   async function load() {
     const d = await api(`/api/layout/${MEAL}`);
     state.W = d.width; state.H = d.height;
+    applySizes(d.default_sizes);
     state.items = d.items.map(it => ({ ...it, uid: nextUid() }));
     state.sel.clear();
     setDirty(false);
     render();
+  }
+  function applySizes(sizes) {
+    Object.entries(sizes || {}).forEach(([k, [w, h]]) => { if (SIZES[k]) Object.assign(SIZES[k], { w, h }); });
   }
   const setDirty = v => { state.dirty = v; $('leDirty').hidden = !v; };
   const byUid = uid => state.items.find(i => i.uid === uid);
@@ -162,6 +167,7 @@
       if (!state.dirty) return toast('変更はありません');
       if (confirm('保存していない変更を取り消して、最後に保存した状態に戻しますか？')) load().catch(() => {});
     } else if (act === 'bulk') openBulk();
+    else if (act === 'sizes') openSizes();
   });
 
   // パネルでの値の変更
@@ -309,6 +315,31 @@
           });
           setDirty(true); render();
           toast(`${n}卓を追加しました(保存するまで確定しません)`);
+        }
+      }]
+    });
+  }
+
+  // ---------- 初期サイズ(追加するときのテーブルの大きさ) ----------
+  function openSizes() {
+    const num = (name, v) => `<input type="number" name="${name}" value="${v}" min="20" max="1000" step="${GRID}" required>`;
+    const m = modal({
+      title: 'テーブルの初期サイズ',
+      body: `<form class="form">
+        <p class="muted" style="margin:0;font-size:12px">ボタンや「まとめて追加」でテーブルを追加するときの大きさです。置いてあるテーブルの大きさは変わりません。マス目に合わせて${GRID}単位で入力します。</p>
+        <div class="row"><label>丸テーブル 直径${num('round_w', SIZES.round.w)}</label><span></span></div>
+        <div class="row"><label>角テーブル 幅${num('square_w', SIZES.square.w)}</label><label>角テーブル 高さ${num('square_h', SIZES.square.h)}</label></div>
+        <div class="row"><label>長方形テーブル 幅${num('rect_w', SIZES.rect.w)}</label><label>長方形テーブル 高さ${num('rect_h', SIZES.rect.h)}</label></div>
+      </form>`,
+      buttons: [{ label: 'キャンセル' }, {
+        label: '保存する', primary: true, onClick: async () => {
+          const f = m.querySelector('form');
+          if (!f.reportValidity()) return false;
+          const v = n => +f[n].value;
+          const sizes = await api(`/api/layout/${MEAL}/default-sizes`, { method: 'PUT', body: {
+            round: { w: v('round_w'), h: v('round_w') }, square: { w: v('square_w'), h: v('square_h') }, rect: { w: v('rect_w'), h: v('rect_h') } } });
+          applySizes(sizes);
+          toast('初期サイズを保存しました(これから追加するテーブルに使います)');
         }
       }]
     });

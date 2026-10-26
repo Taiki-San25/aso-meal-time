@@ -852,7 +852,49 @@ def get_layout(meal: str, _: User = Depends(current_user), db: Session = Depends
     check_meal(meal)
     items = db.scalars(select(LayoutItem).where(LayoutItem.meal == meal, LayoutItem.deleted_at.is_(None))
                        .order_by(LayoutItem.id))
-    return {"width": LAYOUT_W, "height": LAYOUT_H, "items": [layout_dict(i) for i in items]}
+    return {"width": LAYOUT_W, "height": LAYOUT_H, "items": [layout_dict(i) for i in items],
+            "default_sizes": default_sizes(db, meal)}
+
+
+# テーブルを追加するときの大きさ(形ごと)。店舗の設定として保存する
+DEFAULT_SIZES = {"round": [80, 80], "square": [80, 80], "rect": [160, 80]}
+
+
+def default_sizes(db: Session, meal: str) -> dict:
+    import json
+    sizes = {k: list(v) for k, v in DEFAULT_SIZES.items()}
+    try:
+        saved = json.loads(get_setting(db, f"{meal}_table_sizes") or "{}")
+        for k, v in saved.items():
+            if k in sizes and isinstance(v, list) and len(v) == 2:
+                sizes[k] = [int(v[0]), int(v[1])]
+    except (ValueError, TypeError):
+        pass
+    return sizes
+
+
+class SizeIn(BaseModel):
+    w: int = Field(ge=20, le=1000, multiple_of=20)
+    h: int = Field(ge=20, le=1000, multiple_of=20)
+
+
+class SizesIn(BaseModel):
+    round: SizeIn
+    square: SizeIn
+    rect: SizeIn
+
+
+@app.put("/api/layout/{meal}/default-sizes")
+def put_default_sizes(meal: str, body: SizesIn, _: User = Depends(admin_user), db: Session = Depends(get_db)):
+    import json
+    check_meal(meal)
+    body.round.h = body.round.w  # 丸は幅=高さ(直径)
+    key = f"{meal}_table_sizes"
+    row = db.get(Setting, key) or Setting(key=key)
+    row.value = json.dumps({k: [getattr(body, k).w, getattr(body, k).h] for k in DEFAULT_SIZES})
+    db.merge(row)
+    db.commit()
+    return default_sizes(db, meal)
 
 
 class LayoutItemIn(BaseModel):
