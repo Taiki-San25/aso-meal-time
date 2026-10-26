@@ -104,7 +104,7 @@ window.AMT = (function () {
       { key: 'record', label: '記録', title: '記録', icon: 'ti-list-details', items: [
         { label: '操作ログ', icon: 'ti-list-details', href: '/logs' }] },
       { key: 'master', label: '店舗\nマスタ', title: '店舗マスタ', icon: 'ti-building-store', admin: true, lower: true, items: [
-        { label: '単価設定', icon: 'ti-currency-yen', href: '/store-master' }] },
+        { label: '単価・時間枠・設定', icon: 'ti-adjustments', href: '/store-master' }] },
       { key: 'admin', label: '管理者', title: '管理者メニュー', icon: 'ti-shield-lock', admin: true, lower: true, items: [
         { label: '管理者ページ', icon: 'ti-settings', href: '/admin' }] },
     ]
