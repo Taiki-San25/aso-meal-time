@@ -87,6 +87,39 @@ class ChatRead(Base):
     last_read_id: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class LayoutItem(Base):
+    """レストランの見取り図の部品(テーブル・目印)。削除は論理削除(過去のアサインの表示に名前を残すため)"""
+    __tablename__ = "layout_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meal: Mapped[str] = mapped_column(String(16), index=True)
+    kind: Mapped[str] = mapped_column(String(16))  # table / marker
+    shape: Mapped[str] = mapped_column(String(16), default="square")  # table: round / square / rect、marker: label
+    name: Mapped[str] = mapped_column(String(32), default="")  # テーブル番号(T1 など)・目印の文字
+    seats: Mapped[int] = mapped_column(Integer, default=0)
+    x: Mapped[int] = mapped_column(Integer, default=0)
+    y: Mapped[int] = mapped_column(Integer, default=0)
+    w: Mapped[int] = mapped_column(Integer, default=60)
+    h: Mapped[int] = mapped_column(Integer, default=60)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class TableAssignment(Base):
+    """予約とテーブルの割り当て(1予約に複数卓可)。時間は予約の時間帯、日付は予約の日付"""
+    __tablename__ = "table_assignments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reservation_id: Mapped[int] = mapped_column(ForeignKey("reservations.id"), index=True)
+    table_id: Mapped[int] = mapped_column(ForeignKey("layout_items.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_jst)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class Setting(Base):
+    """店舗の設定値(キーと値)"""
+    __tablename__ = "settings"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255), default="")
+
+
 class PriceLog(Base):
     """単価変更の記録(操作ログ用・追記のみ)"""
     __tablename__ = "price_logs"

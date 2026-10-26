@@ -1,0 +1,24 @@
+/* layout_edit.css — レイアウト編集 */
+.leBar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.leBar .sep{width:1px;height:24px;background:#ddd;margin:0 4px}
+.leBar .barRight{display:flex;gap:8px;margin-left:auto;align-items:center}
+.leBar .dirty{font-size:12px;color:#a55a00;background:#fff4e0;border-radius:999px;padding:2px 9px}
+.leMain{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:10px}
+.lePanel{border:1px solid var(--line);border-radius:10px;background:#fff;padding:12px;align-self:start;font-size:13px}
+.lePanel h3{font-size:13px;margin:0 0 8px;color:#555}
+.lePanel .form{gap:8px}
+.lePanel .form .row{grid-template-columns:1fr 1fr;gap:8px}
+.lePanel .muted{font-size:12px;line-height:1.6}
+.lePanel .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.lePanel kbd{font-size:11px;background:#f3f3f3;border:1px solid #ddd;border-radius:4px;padding:0 4px}
+
+.floor.editing .fItem{cursor:move}
+.fItem.sel{outline:3px solid #185fa5;outline-offset:2px;z-index:5}
+.fItem.dupName{border-color:#c0392b !important;background:#fdecea}
+.resizeH{position:absolute;width:12px;height:12px;right:1px;bottom:1px;background:#185fa5;border:2px solid #fff;
+  border-radius:3px;cursor:nwse-resize;z-index:6}
+.rubber{position:absolute;border:1.5px dashed #185fa5;background:rgba(24,95,165,.08);pointer-events:none;z-index:10}
+
+@media (max-width:900px){
+  .leMain{grid-template-columns:1fr}
+}

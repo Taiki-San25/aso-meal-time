@@ -23,6 +23,9 @@
   .pmForm .row{grid-template-columns:repeat(3,minmax(0,1fr))}
   .pmForm .sec{font-size:12px;color:#888;margin:4px 0 -4px}
   .pmForm input[type=number]{text-align:right}
+  .pmSetting{max-width:1100px;margin-bottom:16px}
+  .stayRow{display:flex;align-items:center;gap:8px;color:#333;font-size:14px}
+  .stayRow input{width:110px;text-align:right}
 </style>
 </head>
 <body>
@@ -31,6 +34,15 @@
   1人あたりの単価を、夕食・朝食それぞれに設定します。帳票の金額は「人数×単価」で計算し、過去の日の帳票はその日に有効だった単価を使います。<br>
   内訳（大人CPなど）は大人・子供の内訳にあたるため、両方に単価を入れると二重に計上されます。請求の単位となる項目にだけ単価を入れ、他は0円にしてください。
 </p>
+<section class="pmBox pmSetting">
+  <h2><i class="ti ti-armchair"></i>テーブルアサイン(夕食)</h2>
+  <form class="form pmStay" id="stayForm">
+    <label>滞在時間(1組がテーブルを使う時間)
+      <span class="stayRow"><input type="number" name="stay" min="15" max="600" step="5" required>分
+      <button class="btn primary" type="submit">保存</button></span></label>
+    <p class="muted" style="margin:0;font-size:12px">例: 120分なら 17:30 の組は 19:30 までテーブルを使う扱いになり、その間はほかの予約を重ねてアサインできません。</p>
+  </form>
+</section>
 <div class="pmGrid">
   <section class="pmBox" data-meal="dinner"><h2><i class="ti ti-moon"></i>夕食<button class="btn primary" data-edit><i class="ti ti-pencil"></i>単価を変更</button></h2><div class="pmBody"><p class="empty">読み込み中…</p></div></section>
   <section class="pmBox" data-meal="breakfast"><h2><i class="ti ti-sun"></i>朝食<button class="btn primary" data-edit><i class="ti ti-pencil"></i>単価を変更</button></h2><div class="pmBody"><p class="empty">読み込み中…</p></div></section>
@@ -47,7 +59,7 @@
 
   async function load() {
     data = await api('/api/prices');
-    document.querySelectorAll('.pmBox').forEach(box => render(box, box.dataset.meal));
+    document.querySelectorAll('.pmBox[data-meal]').forEach(box => render(box, box.dataset.meal));
   }
 
   function render(box, meal) {
@@ -100,6 +112,16 @@
       }]
     });
   }
+
+  // 滞在時間
+  const stayForm = document.getElementById('stayForm');
+  api('/api/settings').then(s => { stayForm.stay.value = s.dinner_stay_minutes; }).catch(() => {});
+  stayForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!stayForm.reportValidity()) return;
+    const s = await api('/api/settings', { method: 'PUT', body: { dinner_stay_minutes: +stayForm.stay.value } }).catch(() => null);
+    if (s) toast(`滞在時間を${s.dinner_stay_minutes}分にしました`);
+  });
 
   document.querySelectorAll('.pmBox [data-edit]').forEach(b =>
     b.addEventListener('click', e => openEdit(e.target.closest('.pmBox').dataset.meal)));

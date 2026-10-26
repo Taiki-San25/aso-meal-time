@@ -72,23 +72,25 @@
 
     // 予約明細
     const keys = d.items.map(it => it.key);
-    $('rpHead').innerHTML = `<tr><th>時間</th><th>部屋</th><th>代表者名</th>
+    const hasTables = MEAL === 'dinner';
+    $('rpHead').innerHTML = `<tr><th>時間</th><th>部屋</th>${hasTables ? '<th>テーブル</th>' : ''}<th>代表者名</th>
       ${d.items.map(it => `<th class="num" title="${esc(it.label)}">${SHORT[it.key] || esc(it.label)}</th>`).join('')}
       <th class="num">金額</th><th>アレルギー</th><th>備考</th></tr>`;
     $('rpCount').textContent = `${d.total.groups}組`;
     if (!d.rows.length) {
-      $('rpRows').innerHTML = `<tr><td colspan="${keys.length + 6}" class="empty">この日の予約はありません</td></tr>`;
+      $('rpRows').innerHTML = `<tr><td colspan="${keys.length + 6 + (hasTables ? 1 : 0)}" class="empty">この日の予約はありません</td></tr>`;
       return;
     }
     $('rpRows').innerHTML = d.rows.map(r => `<tr>
         <td>${r.time_slot || '<span class="muted">未定</span>'}</td>
         <td class="room">${esc(r.room)}</td>
+        ${hasTables ? `<td class="tables">${esc((r.tables || []).join(', '))}</td>` : ''}
         <td>${r.vip ? '<span class="vipStar" title="VIP">★</span>' : ''}${esc(r.guest_name)}</td>
         ${keys.map(k => `<td class="num">${r[k] || '<span class="z">0</span>'}</td>`).join('')}
         <td class="num amt">${yen(r.amount)}</td>
         <td class="allergy">${esc(r.allergy)}</td>
         <td class="note">${esc(r.note)}</td></tr>`).join('') +
-      `<tr class="totalRow"><td colspan="3">合計</td>${keys.map(k => `<td class="num">${d.total[k]}</td>`).join('')}
+      `<tr class="totalRow"><td colspan="${hasTables ? 4 : 3}">合計</td>${keys.map(k => `<td class="num">${d.total[k]}</td>`).join('')}
         <td class="num amt">${yen(d.total.amount)}</td><td></td><td></td></tr>`;
   }
 

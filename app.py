@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, PriceLog, UnitPrice, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
+from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, LayoutItem, PriceLog, Setting,
+                TableAssignment, UnitPrice, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
                 User, init_db, now_jst)
 from security import hash_password, verify_password
 
@@ -296,9 +297,33 @@ def snapshot(r: Reservation) -> dict:
             for f in TRACKED for v in [getattr(r, f)]}
 
 
-def to_dict(r: Reservation, names: dict[int, str]) -> dict:
+def table_names(db: Session, rids) -> dict[int, list[str]]:
+    """予約ID → アサインされたテーブル番号(番号順)"""
+    rids = list(rids)
+    out: dict[int, list[str]] = {}
+    if not rids:
+        return out
+    for rid, name in db.execute(select(TableAssignment.reservation_id, LayoutItem.name)
+                                .join(LayoutItem, LayoutItem.id == TableAssignment.table_id)
+                                .where(TableAssignment.reservation_id.in_(rids))):
+        out.setdefault(rid, []).append(name)
+    for v in out.values():
+        v.sort(key=natural_key)
+    return out
+
+
+def natural_key(s: str):
+    """T2 < T10 のように数字部分を数として並べる"""
+    return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s)]
+
+
+def res_out(db: Session, r: Reservation) -> dict:
+    return to_dict(r, user_names(db), table_names(db, [r.id]).get(r.id, []))
+
+
+def to_dict(r: Reservation, names: dict[int, str], tables: list[str] | None = None) -> dict:
     return {
-        "id": r.id, "meal": r.meal, **snapshot(r),
+        "id": r.id, "meal": r.meal, **snapshot(r), "tables": tables or [],
         "created_at": iso(r.created_at), "created_by": names.get(r.created_by, ""),
         "updated_at": iso(r.updated_at), "updated_by": names.get(r.updated_by, ""),
         "deleted": r.deleted_at is not None,
@@ -374,7 +399,9 @@ def list_reservations(meal: str, d: date, include_deleted: bool = False, _: User
     if not include_deleted:
         q = q.where(Reservation.deleted_at.is_(None))
     names = user_names(db)
-    return [to_dict(r, names) for r in db.scalars(q.order_by(Reservation.room, Reservation.id))]
+    rows = list(db.scalars(q.order_by(Reservation.room, Reservation.id)))
+    tables = table_names(db, (r.id for r in rows))
+    return [to_dict(r, names, tables.get(r.id)) for r in rows]
 
 
 @app.post("/api/{meal}/reservations")
@@ -421,7 +448,7 @@ def update_reservation(meal: str, rid: int, body: ReservationIn, user: User = De
     if old_group and old_group != r.group_id:
         shrink_group(db, old_group, user)
     db.commit()
-    return to_dict(r, user_names(db))
+    return res_out(db, r)
 
 
 @app.patch("/api/{meal}/reservations/{rid}/time")
@@ -430,7 +457,7 @@ def set_time(meal: str, rid: int, body: TimeSlotIn, user: User = Depends(current
     r = get_reservation(db, check_meal(meal), rid)
     change(db, r, {"time_slot": body.time_slot}, user)
     db.commit()
-    return to_dict(r, user_names(db))
+    return res_out(db, r)
 
 
 class EnteredIn(BaseModel):
@@ -448,7 +475,7 @@ def set_entered(meal: str, rid: int, body: EnteredIn, user: User = Depends(curre
         change(db, r, {"entered_at": now_jst() if body.entered else None,
                        "entered_by": user.id if body.entered else None}, user)
         db.commit()
-    return to_dict(r, user_names(db))
+    return res_out(db, r)
 
 
 @app.delete("/api/{meal}/reservations/{rid}")
@@ -458,7 +485,7 @@ def delete_reservation(meal: str, rid: int, user: User = Depends(current_user), 
     r.deleted_at, r.deleted_by = now_jst(), user.id
     record(db, r, user, "delete", {})
     db.commit()
-    return to_dict(r, user_names(db))
+    return res_out(db, r)
 
 
 @app.post("/api/{meal}/reservations/{rid}/restore")
@@ -469,7 +496,7 @@ def restore_reservation(meal: str, rid: int, user: User = Depends(current_user),
     r.deleted_at, r.deleted_by = None, None
     record(db, r, user, "restore", {})
     db.commit()
-    return to_dict(r, user_names(db))
+    return res_out(db, r)
 
 
 @app.get("/api/{meal}/reservations/{rid}/history")
@@ -773,6 +800,219 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
 
 
+# ---------- 設定値(店舗マスタ) ----------
+SETTING_DEFAULTS = {"dinner_stay_minutes": "120"}  # 夕食の滞在時間(分): テーブルの重なりの判定に使う
+
+
+def get_setting(db: Session, key: str) -> str:
+    row = db.get(Setting, key)
+    return row.value if row else SETTING_DEFAULTS.get(key, "")
+
+
+def stay_minutes(db: Session, meal: str) -> int:
+    try:
+        return max(15, int(get_setting(db, f"{meal}_stay_minutes") or 120))
+    except ValueError:
+        return 120
+
+
+@app.get("/api/settings")
+def get_settings(_: User = Depends(current_user), db: Session = Depends(get_db)):
+    return {"dinner_stay_minutes": stay_minutes(db, "dinner")}
+
+
+class SettingsIn(BaseModel):
+    dinner_stay_minutes: int = Field(ge=15, le=600)
+
+
+@app.put("/api/settings")
+def put_settings(body: SettingsIn, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    old = stay_minutes(db, "dinner")
+    row = db.get(Setting, "dinner_stay_minutes") or Setting(key="dinner_stay_minutes")
+    row.value = str(body.dinner_stay_minutes)
+    db.merge(row)
+    if old != body.dinner_stay_minutes:  # 操作ログ(店舗マスタ)に残す
+        db.add(PriceLog(user_id=user.id, meal="dinner", item="stay_minutes", old_price=old,
+                        new_price=body.dinner_stay_minutes, effective_from=now_jst().date()))
+    db.commit()
+    return get_settings(user, db)
+
+
+# ---------- レイアウト(見取り図) ----------
+LAYOUT_W, LAYOUT_H = 3000, 2000  # 見取り図の大きさ(画面の単位)
+
+
+def layout_dict(it: LayoutItem) -> dict:
+    return {"id": it.id, "kind": it.kind, "shape": it.shape, "name": it.name, "seats": it.seats,
+            "x": it.x, "y": it.y, "w": it.w, "h": it.h}
+
+
+@app.get("/api/layout/{meal}")
+def get_layout(meal: str, _: User = Depends(current_user), db: Session = Depends(get_db)):
+    check_meal(meal)
+    items = db.scalars(select(LayoutItem).where(LayoutItem.meal == meal, LayoutItem.deleted_at.is_(None))
+                       .order_by(LayoutItem.id))
+    return {"width": LAYOUT_W, "height": LAYOUT_H, "items": [layout_dict(i) for i in items]}
+
+
+class LayoutItemIn(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: int | None = None
+    kind: Literal["table", "marker"]
+    shape: Literal["round", "square", "rect", "label"] = "square"
+    name: str = Field(default="", max_length=32)
+    seats: int = Field(default=0, ge=0, le=999)
+    x: int = Field(ge=0, le=LAYOUT_W)
+    y: int = Field(ge=0, le=LAYOUT_H)
+    w: int = Field(ge=10, le=LAYOUT_W)
+    h: int = Field(ge=10, le=LAYOUT_H)
+
+
+class LayoutIn(BaseModel):
+    items: list[LayoutItemIn] = Field(max_length=2000)
+
+
+@app.get("/api/layout/{meal}/usage")
+def layout_usage(meal: str, _: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """テーブルごとの今日以降のアサイン件数(レイアウト編集で削除するときの確認用)"""
+    check_meal(meal)
+    today = now_jst().date()
+    rows = db.execute(select(TableAssignment.table_id, func.count())
+                      .join(Reservation, Reservation.id == TableAssignment.reservation_id)
+                      .where(Reservation.date >= today, Reservation.deleted_at.is_(None))
+                      .group_by(TableAssignment.table_id))
+    return {str(tid): n for tid, n in rows}
+
+
+@app.put("/api/layout/{meal}")
+def put_layout(meal: str, body: LayoutIn, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """見取り図をまるごと保存。無くなったテーブルは論理削除し、今日以降のアサインを解除する"""
+    check_meal(meal)
+    names = [i.name for i in body.items if i.kind == "table"]
+    if any(not n for n in names):
+        raise HTTPException(400, "テーブル番号が空のテーブルがあります")
+    dup = sorted({n for n in names if names.count(n) > 1}, key=natural_key)
+    if dup:
+        raise HTTPException(400, f"テーブル番号が重複しています: {'、'.join(dup)}")
+    current = {i.id: i for i in db.scalars(select(LayoutItem).where(LayoutItem.meal == meal,
+                                                                   LayoutItem.deleted_at.is_(None)))}
+    keep = set()
+    for it in body.items:
+        values = it.model_dump(exclude={"id"})
+        if it.kind == "marker":
+            values.update(shape="label", seats=0)
+        row = current.get(it.id) if it.id else None
+        if row:
+            for k, v in values.items():
+                setattr(row, k, v)
+            keep.add(row.id)
+        else:
+            db.add(LayoutItem(meal=meal, **values))
+    today = now_jst().date()
+    removed = 0
+    for rid_, row in current.items():
+        if rid_ in keep:
+            continue
+        row.deleted_at = now_jst()
+        # 今日以降のアサインは解除(過去のものは記録として残す)
+        for a, r in db.execute(select(TableAssignment, Reservation)
+                               .join(Reservation, Reservation.id == TableAssignment.reservation_id)
+                               .where(TableAssignment.table_id == row.id, Reservation.date >= today)).all():
+            before = ", ".join(table_names(db, [r.id]).get(r.id, []))
+            db.delete(a)
+            db.flush()
+            after = ", ".join(table_names(db, [r.id]).get(r.id, []))
+            record(db, r, user, "update", {"tables": [before, after]})
+            removed += 1
+    db.commit()
+    return {**get_layout(meal, user, db), "unassigned": removed}
+
+
+# ---------- テーブルアサイン ----------
+def slot_minutes(t: str | None) -> int | None:
+    if not t:
+        return None
+    h, m = t.split(":")
+    return int(h) * 60 + int(m)
+
+
+@app.get("/api/{meal}/assign")
+def assign_state(meal: str, d: date, _: User = Depends(current_user), db: Session = Depends(get_db)):
+    """その日のアサインの状態: 予約(削除済みを除く)・アサイン・滞在時間"""
+    check_meal(meal)
+    rows = list(db.scalars(select(Reservation).where(Reservation.meal == meal, Reservation.date == d,
+                                                     Reservation.deleted_at.is_(None))))
+    ids = [r.id for r in rows]
+    assigns = list(db.scalars(select(TableAssignment).where(TableAssignment.reservation_id.in_(ids)))) if ids else []
+    names = user_names(db)
+    tables = table_names(db, ids)
+    return {
+        "date": d.isoformat(), "stay_minutes": stay_minutes(db, meal), "slots": slot_labels(db, meal),
+        "reservations": [to_dict(r, names, tables.get(r.id)) for r in rows],
+        "assignments": [{"reservation_id": a.reservation_id, "table_id": a.table_id} for a in assigns],
+    }
+
+
+class AssignIn(BaseModel):
+    table_id: int
+
+
+def table_conflict(db: Session, r: Reservation, table_id: int) -> Reservation | None:
+    """同じ日に、そのテーブルを滞在時間が重なる別の予約が使っていれば返す"""
+    stay = stay_minutes(db, r.meal)
+    start = slot_minutes(r.time_slot)
+    for other in db.scalars(select(Reservation).join(TableAssignment, TableAssignment.reservation_id == Reservation.id)
+                            .where(TableAssignment.table_id == table_id, Reservation.date == r.date,
+                                   Reservation.meal == r.meal, Reservation.id != r.id,
+                                   Reservation.deleted_at.is_(None))):
+        o = slot_minutes(other.time_slot)
+        if o is not None and start < o + stay and o < start + stay:
+            return other
+    return None
+
+
+@app.post("/api/{meal}/reservations/{rid}/tables")
+def assign_table(meal: str, rid: int, body: AssignIn, user: User = Depends(current_user),
+                 db: Session = Depends(get_db)):
+    r = get_reservation(db, check_meal(meal), rid)
+    if not r.time_slot:
+        raise HTTPException(400, "時間が未定の予約はアサインできません。先に時間を決めてください")
+    t = db.get(LayoutItem, body.table_id)
+    if not t or t.meal != meal or t.kind != "table" or t.deleted_at is not None:
+        raise HTTPException(404, "テーブルが見つかりません")
+    if db.scalar(select(TableAssignment).where(TableAssignment.reservation_id == rid,
+                                               TableAssignment.table_id == t.id)):
+        return res_out(db, r)
+    other = table_conflict(db, r, t.id)
+    if other:
+        raise HTTPException(409, f"{t.name} は {other.time_slot} の {other.room} {other.guest_name} 様が使用中です"
+                                 f"(滞在時間 {stay_minutes(db, meal)}分)")
+    before = ", ".join(table_names(db, [r.id]).get(r.id, []))
+    db.add(TableAssignment(reservation_id=r.id, table_id=t.id, created_by=user.id))
+    db.flush()
+    after = ", ".join(table_names(db, [r.id]).get(r.id, []))
+    record(db, r, user, "update", {"tables": [before, after]})
+    db.commit()
+    return res_out(db, r)
+
+
+@app.delete("/api/{meal}/reservations/{rid}/tables/{table_id}")
+def unassign_table(meal: str, rid: int, table_id: int, user: User = Depends(current_user),
+                   db: Session = Depends(get_db)):
+    r = get_reservation(db, check_meal(meal), rid)
+    a = db.scalar(select(TableAssignment).where(TableAssignment.reservation_id == rid,
+                                                TableAssignment.table_id == table_id))
+    if a:
+        before = ", ".join(table_names(db, [r.id]).get(r.id, []))
+        db.delete(a)
+        db.flush()
+        after = ", ".join(table_names(db, [r.id]).get(r.id, []))
+        record(db, r, user, "update", {"tables": [before, after]})
+        db.commit()
+    return res_out(db, r)
+
+
 # ---------- 店舗マスタ(単価) ----------
 # 単価を設定する項目(画面・帳票の並び順)
 PRICE_ITEMS = [
@@ -868,8 +1108,10 @@ def report_data(db: Session, meal: str, d: date) -> dict:
     counts = {k: sum(getattr(r, k) for r in rows) for k in PRICE_KEYS}
     items = [{"key": k, "label": l, "count": counts[k], "price": prices[k], "amount": counts[k] * prices[k]}
              for k, l in PRICE_ITEMS]
+    tables = table_names(db, (r.id for r in rows))
     details = [{
         "id": r.id, "time_slot": r.time_slot, "room": r.room, "guest_name": r.guest_name, "vip": r.vip,
+        "tables": tables.get(r.id, []),
         "nights": r.nights, "night_no": r.night_no, "entered": r.entered_at is not None,
         **{k: getattr(r, k) for k in PRICE_KEYS},
         "amount": sum(getattr(r, k) * prices[k] for k in PRICE_KEYS),
@@ -933,13 +1175,16 @@ def meal_report_xlsx(meal: str, d: date, _: User = Depends(current_user), db: Se
     ws.append(["■ 予約明細"])
     ws.cell(row=ws.max_row, column=1).font = Font(bold=True)
     labels = [l for _, l in PRICE_ITEMS]
-    add_row(["時間", "部屋", "代表者名", "VIP", *labels, "金額", "アレルギー", "備考"], head_fill, True)
+    has_tables = meal == "dinner"  # テーブルアサインは夕食だけ
+    add_row(["時間", "部屋", "代表者名", "VIP", *labels, "金額", "アレルギー", "備考"] + (["テーブル"] if has_tables else []),
+            head_fill, True)
     head_row = ws.max_row
     for c in ws[head_row]:
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     for r in data["rows"]:
         add_row([r["time_slot"] or "未定", r["room"], r["guest_name"], "★" if r["vip"] else "",
-                 *[r[k] for k in PRICE_KEYS], r["amount"], r["allergy"], r["note"]])
+                 *[r[k] for k in PRICE_KEYS], r["amount"], r["allergy"], r["note"]]
+                + ([", ".join(r["tables"])] if has_tables else []))
         ws.cell(row=ws.max_row, column=4 + len(PRICE_KEYS) + 1).number_format = yen
     add_row(["合計", "", f"{data['total']['groups']}組", "", *[data["total"][k] for k in PRICE_KEYS],
              data["total"]["amount"], "", ""], total_fill, True)
@@ -973,6 +1218,7 @@ FIELD_LABELS = {
     "adult_coupon": "大人クーポン(食事付)", "free_adult": "フリー大人(生打ち)",
     "child_coupon": "子供クーポン(食事付)", "free_child": "フリー子供(生打ち)", "outside": "外来大人", "outside_child": "外来子供", "vip": "VIP",
     "allergy": "アレルギー", "note": "備考", "group_id": "グループ", "entered_at": "ステータス",
+    "tables": "テーブル",
 }
 RES_ACTIONS = {"create": "登録", "update": "変更", "delete": "削除", "restore": "復元"}
 AUTH_ACTIONS = {"login": "ログイン", "login_failed": "ログイン失敗", "logout": "ログアウト",
@@ -987,6 +1233,8 @@ def fmt_value(field: str, v) -> str:
         return "あり" if v else "なし"
     if field == "entered_at":
         return "入場済" if v else "空白"
+    if field == "tables":
+        return v or "なし"
     return "(空欄)" if v in (None, "") else str(v)
 
 
@@ -1045,6 +1293,11 @@ def operation_logs(start: date, end: date, _: User = Depends(current_user), db: 
     price_labels = dict(PRICE_ITEMS)
     yen = lambda n: "―" if n is None else f"{n:,}円"
     for p in db.scalars(select(PriceLog).where(PriceLog.at >= t0, PriceLog.at < t1)):
+        if p.item == "stay_minutes":
+            logs.append({"_id": p.id, "at": iso(p.at), "kind": "master", "kind_label": "店舗マスタ", "action": "設定変更",
+                         "target": f"{MEAL_LABELS.get(p.meal, '')} 滞在時間", "link": "/store-master",
+                         "detail": f"{p.old_price}分 → {p.new_price}分", **who(p.user_id)})
+            continue
         logs.append({"_id": p.id, "at": iso(p.at), "kind": "master", "kind_label": "店舗マスタ", "action": "単価変更",
                      "target": f"{MEAL_LABELS.get(p.meal, '')} {price_labels.get(p.item, p.item)}", "link": "/store-master",
                      "detail": f"{yen(p.old_price)} → {yen(p.new_price)}({p.effective_from:%Y/%m/%d}〜)",
@@ -1056,8 +1309,8 @@ def operation_logs(start: date, end: date, _: User = Depends(current_user), db: 
 
 # ---------- ページ ----------
 PAGES = {"dinner", "breakfast", "dinner-summary", "breakfast-summary", "dinner-report", "breakfast-report",
-         "chat", "logs", "admin", "store-master"}
-ADMIN_PAGES = {"admin", "store-master"}  # 管理者・developer だけが開けるページ
+         "table-assign", "layout-edit", "chat", "logs", "admin", "store-master"}
+ADMIN_PAGES = {"admin", "store-master", "layout-edit"}  # 管理者・developer だけが開けるページ
 
 
 def file_response(request: Request, path: Path, **kwargs) -> Response:

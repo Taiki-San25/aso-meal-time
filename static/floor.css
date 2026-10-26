@@ -1,0 +1,19 @@
+/* floor.css — レストランの見取り図(レイアウト編集・テーブルアサイン共通) */
+.floorWrap{position:relative;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fbfbf9;
+  height:calc(100dvh - 53px - 150px);min-height:360px;touch-action:none}
+.floor{position:relative;background-color:#fff;transform-origin:0 0;
+  background-image:linear-gradient(#eef0f3 1px,transparent 1px),linear-gradient(90deg,#eef0f3 1px,transparent 1px)}
+.fItem{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;
+  box-sizing:border-box;text-align:center;line-height:1.15;overflow:hidden;cursor:default}
+.fItem.table{background:#fff;border:2px solid #90a4ae;border-radius:8px;color:#263238}
+.fItem.table.round{border-radius:50%}
+.fItem.marker{background:#eceff1;border:1.5px dashed #b0bec5;border-radius:4px;color:#546e7a;font-size:13px;font-weight:600}
+.fItem .fName{font-weight:700;font-size:14px;white-space:nowrap}
+.fItem .fSeats{font-size:11px;color:#78909c;white-space:nowrap}
+.fItem .fGuest{font-size:11px;font-weight:600;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;padding:0 3px}
+
+.zoomBox{display:inline-flex;align-items:center;gap:2px;border:1px solid #ccc;border-radius:8px;background:#fff;padding:0 2px}
+.zoomBox .iconBtn{width:30px;height:30px}
+.zoomBox span{min-width:42px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums;color:#555}
+.floorStats{font-size:13px;color:#555;white-space:nowrap}
+.floorStats b{color:var(--text);font-variant-numeric:tabular-nums}

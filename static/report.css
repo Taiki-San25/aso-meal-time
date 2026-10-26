@@ -19,6 +19,7 @@ td.amt{font-weight:700}
 .rpItems tr.zero td.amt{font-weight:400}
 .rpRows td{white-space:nowrap}
 .rpRows td.room{font-weight:700}
+.rpRows td.tables{font-weight:700;color:#37474f}
 .rpRows td.allergy{color:#c0392b;white-space:pre-wrap;min-width:100px}
 .rpRows td.note{white-space:pre-wrap;min-width:120px;color:#444}
 .rpRows .z{color:#ccc}

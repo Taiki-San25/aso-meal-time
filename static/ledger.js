@@ -19,6 +19,8 @@
     { key: 'time', label: '時間', val: r => r.time_slot || '' },
     { key: 'status', label: 'ステータス', val: r => (r.entered_at ? 1 : 0) },
     { key: 'room', label: '部屋', val: byText('room') },
+    ...(MEAL === 'dinner'
+      ? [{ key: 'tables', label: 'テーブル', val: r => (r.tables || []).join(',') }] : []),
     { key: 'guest_name', label: '代表者名', val: byText('guest_name') },
     { key: 'allergy', label: 'アレルギー', val: byText('allergy') },
     { key: 'adults', label: '大人', num: true, val: r => r.adults },
@@ -232,7 +234,7 @@
     const rows = visibleRows();
     const tbody = $('ldBody');
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="12" class="empty">${state.rows.length ? (state.vipOnly && !state.rows.some(r => r.vip) ? 'この日のVIPの予約はありません' : '該当する予約はありません') : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="empty">${state.rows.length ? (state.vipOnly && !state.rows.some(r => r.vip) ? 'この日のVIPの予約はありません' : '該当する予約はありません') : 'この日の予約はまだありません。「追加」から登録してください。'}</td></tr>`;
       return;
     }
     let prevSlot = null;
@@ -248,6 +250,7 @@
           <span class="printOnly">${r.time_slot || '未定'}</span>`}</td>
         <td class="status">${statusCell(r)}</td>
         <td class="room">${esc(r.room)}${groupTag(groups[r.group_id])}</td>
+        ${MEAL === 'dinner' ? `<td class="tables">${(r.tables || []).map(t => `<span class="tblTag">${esc(t)}</span>`).join('')}</td>` : ''}
         <td class="guest">${r.vip ? '<span class="vipStar" title="VIP" aria-label="VIP">★</span>' : ''}${esc(r.guest_name)}${countBadges(r)}</td>
         <td class="allergyCell">${r.allergy ? `<span class="allergy"><i class="ti ti-alert-triangle"></i>${esc(r.allergy)}</span>` : ''}</td>
         <td class="num">${r.adults}</td><td class="num">${r.children}</td><td class="num">${r.infants}</td>

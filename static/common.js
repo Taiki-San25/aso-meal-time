@@ -86,11 +86,13 @@ window.AMT = (function () {
       { label: 'ログアウト', icon: 'ti-logout', type: 'normal', href: '/logout' }
     ],
     // 左のメニュー(hotel-system と同じ作り): 大分類のアイコンと短い名前を縦に並べ、マウスを合わせると中分類(ページ)の小窓が出る
-    // admin: 管理者・developer だけ。lower: 区切り線の下にまとめる
+    // admin: 管理者・developer だけ(大分類・中分類のどちらにも付けられる)。lower: 区切り線の下にまとめる
     categories: [
       { key: 'dinner', label: '夕食', title: '夕食', icon: 'ti-moon', items: [
         { label: '夕食時間管理表', icon: 'ti-moon', href: '/dinner' },
-        { label: '夕食集計', icon: 'ti-chart-bar', href: '/dinner-summary' }] },
+        { label: '夕食集計', icon: 'ti-chart-bar', href: '/dinner-summary' },
+        { label: 'テーブルアサイン', icon: 'ti-armchair', href: '/table-assign' },
+        { label: 'レイアウト編集', icon: 'ti-layout-grid', href: '/layout-edit', admin: true }] },
       { key: 'breakfast', label: '朝食', title: '朝食', icon: 'ti-sun', items: [
         { label: '朝食時間管理表', icon: 'ti-sun', href: '/breakfast' },
         { label: '朝食集計', icon: 'ti-chart-bar', href: '/breakfast-summary' }] },
@@ -116,6 +118,7 @@ window.AMT = (function () {
   // メニューに出してよいか(管理者メニューはログインした人のロールが分かるまで出さない)
   const vis = { admin: false, unread: 0 };
   const shown = c => !c.admin || vis.admin;
+  const itemsOf = c => c.items.filter(shown);
   const navRow = (it, admin) => `<a class="navRow${admin ? ' adminPage' : ''}${path === it.href ? ' navRowActive' : ''}" href="${it.href}">
       <i class="ti ${it.icon}"></i><span class="lbl">${esc(it.label)}</span>${it.unread && vis.unread
         ? `<small class="navCnt" title="未読${vis.unread}件">${vis.unread > 99 ? '99+' : vis.unread}</small>` : ''}</a>`;
@@ -160,7 +163,7 @@ window.AMT = (function () {
     sidebar.querySelector('.railNav').innerHTML = upper.map(btn).join('') +
       (lower.length ? `<span class="railGap" aria-hidden="true"></span>${lower.map(btn).join('')}` : '');
     sidebar.querySelector('.drawerNav').innerHTML = cats.map(c => `<div class="navHeading">${esc(c.title)}</div>
-        ${c.items.map(it => navRow(it, !!c.admin)).join('')}`).join('');
+        ${itemsOf(c).map(it => navRow(it, !!c.admin)).join('')}`).join('');
     if (!railPop.hidden) openPop(railPop.dataset.cat);
   };
 
@@ -214,7 +217,7 @@ window.AMT = (function () {
     if (!c || !btn) return closePop();
     clearTimeout(popTimer);
     railPop.dataset.cat = key;
-    railPop.innerHTML = `<div class="railPopTitle">${esc(c.title)}</div>${c.items.map(it => navRow(it, !!c.admin).replace('class="navRow', 'role="menuitem" class="navRow')).join('')}`;
+    railPop.innerHTML = `<div class="railPopTitle">${esc(c.title)}</div>${itemsOf(c).map(it => navRow(it, !!c.admin || !!it.admin).replace('class="navRow', 'role="menuitem" class="navRow')).join('')}`;
     railPop.hidden = false;
     const r = btn.getBoundingClientRect();
     railPop.style.top = `${Math.max(56, Math.min(r.top - 6, innerHeight - railPop.offsetHeight - 8))}px`;
