@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/static/favicon.ico">
+<title>店舗マスタ｜阿蘇リゾートグランヴィリオホテル　喫食時間管理表</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.44.0/tabler-icons.min.css">
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .pmNote{font-size:12px;margin:0 0 14px;line-height:1.7}
+  .pmGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;max-width:1100px}
+  .pmBox{border:1px solid var(--line);border-radius:10px;background:#fff;padding:14px}
+  .pmBox h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .pmBox h2 .btn{margin-left:auto}
+  .pmTable td.num,.pmTable th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pmTable td.price{font-weight:700}
+  .pmTable tr.group td{border-top:2px solid #e3e7ec}
+  .upcoming{font-size:11px;color:#a55a00;background:#fff4e0;border-radius:999px;padding:1px 7px;white-space:nowrap}
+  .pmHist{margin-top:10px;font-size:12px}
+  .pmHist summary{cursor:pointer;color:var(--accent);padding:4px 0}
+  .pmHist table{margin-top:4px}
+  .pmForm .row{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .pmForm .sec{font-size:12px;color:#888;margin:4px 0 -4px}
+  .pmForm input[type=number]{text-align:right}
+</style>
+</head>
+<body>
+<div class="pageHead"><h1>店舗マスタ（単価設定）</h1></div>
+<p class="muted pmNote">
+  1人あたりの単価を、夕食・朝食それぞれに設定します。帳票の金額は「人数×単価」で計算し、過去の日の帳票はその日に有効だった単価を使います。<br>
+  内訳（大人CPなど）は大人・子供の内訳にあたるため、両方に単価を入れると二重に計上されます。請求の単位となる項目にだけ単価を入れ、他は0円にしてください。
+</p>
+<div class="pmGrid">
+  <section class="pmBox" data-meal="dinner"><h2><i class="ti ti-moon"></i>夕食<button class="btn primary" data-edit><i class="ti ti-pencil"></i>単価を変更</button></h2><div class="pmBody"><p class="empty">読み込み中…</p></div></section>
+  <section class="pmBox" data-meal="breakfast"><h2><i class="ti ti-sun"></i>朝食<button class="btn primary" data-edit><i class="ti ti-pencil"></i>単価を変更</button></h2><div class="pmBody"><p class="empty">読み込み中…</p></div></section>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+(function () {
+  const { esc, api, toast, modal } = AMT;
+  const yen = n => `${Number(n).toLocaleString('ja-JP')}円`;
+  const slash = s => s.replace(/-/g, '/');
+  const BREAKDOWN_FROM = 3;  // 0〜2 が大人・子供・幼児、3 以降が内訳
+  let data = null;
+
+  async function load() {
+    data = await api('/api/prices');
+    document.querySelectorAll('.pmBox').forEach(box => render(box, box.dataset.meal));
+  }
+
+  function render(box, meal) {
+    const m = data.meals[meal];
+    const rows = data.items.map((it, i) => {
+      const up = m.upcoming[it.key];
+      return `<tr class="${i === BREAKDOWN_FROM ? 'group' : ''}">
+        <td>${esc(it.label)}</td>
+        <td class="num price">${yen(m.current[it.key])}</td>
+        <td>${up ? `<span class="upcoming" title="${slash(up.from)} から ${yen(up.price)}">${slash(up.from)}〜 ${yen(up.price)}</span>` : ''}</td>
+      </tr>`;
+    }).join('');
+    const hist = m.history.map(h => `<tr><td>${slash(h.from)}〜</td><td>${esc(h.label)}</td><td class="num">${yen(h.price)}</td>
+      <td class="muted">${esc(h.by)}</td></tr>`).join('');
+    box.querySelector('.pmBody').innerHTML = `
+      <div class="tableWrap"><table class="grid pmTable">
+        <thead><tr><th>項目</th><th class="num">今日の単価</th><th>変更予定</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <details class="pmHist"><summary>変更履歴(${m.history.length}件)</summary>
+        ${hist ? `<div class="tableWrap"><table class="grid"><thead><tr><th>適用開始日</th><th>項目</th><th class="num">単価</th><th>登録者</th></tr></thead><tbody>${hist}</tbody></table></div>`
+               : '<p class="muted">まだ単価は登録されていません(すべて0円)</p>'}
+      </details>`;
+  }
+
+  function openEdit(meal) {
+    const m = data.meals[meal];
+    const label = meal === 'dinner' ? '夕食' : '朝食';
+    const input = it => `<label>${esc(it.label)}<input type="number" name="${it.key}" value="${m.current[it.key]}" min="0" step="1" inputmode="numeric" required></label>`;
+    const md = modal({
+      title: `${label}の単価を変更`,
+      wide: true,
+      body: `<form class="form pmForm">
+        <label>適用開始日<input type="date" name="from" value="${data.today}" required></label>
+        <p class="muted" style="margin:-4px 0 0;font-size:12px">この日以降の帳票に新しい単価を使います。それより前の日の金額は変わりません。</p>
+        <p class="sec">大人・子供・幼児(1人あたり・円)</p>
+        <div class="row">${data.items.slice(0, BREAKDOWN_FROM).map(input).join('')}</div>
+        <p class="sec">内訳(1人あたり・円)</p>
+        <div class="row">${data.items.slice(BREAKDOWN_FROM).map(input).join('')}</div>
+      </form>`,
+      buttons: [{ label: 'キャンセル' }, {
+        label: '登録する', primary: true, onClick: async () => {
+          const f = md.querySelector('form');
+          if (!f.reportValidity()) return false;
+          const prices = Object.fromEntries(data.items.map(it => [it.key, +f[it.key].value]));
+          const r = await api('/api/prices', { method: 'PUT', body: { meal, effective_from: f.from.value, prices } });
+          toast(r.changed ? `${label}の単価を${r.changed}項目登録しました(${slash(f.from.value)}〜)` : '変更はありませんでした');
+          await load();
+        }
+      }]
+    });
+  }
+
+  document.querySelectorAll('.pmBox [data-edit]').forEach(b =>
+    b.addEventListener('click', e => openEdit(e.target.closest('.pmBox').dataset.meal)));
+  load().catch(() => {});
+})();
+</script>
+</body>
+</html>

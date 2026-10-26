@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
+from db import (ADMIN_ROLES, ENTRY_ROLES, MEALS, ROLES, AuthLog, ChatMessage, UnitPrice, ChatRead, Reservation, ReservationHistory, SessionLocal, TimeSlot,
                 User, init_db, now_jst)
 from security import hash_password, verify_password
 
@@ -773,6 +773,196 @@ def meal_summary_xlsx(meal: str, start: date, end: date, _: User = Depends(curre
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
 
 
+# ---------- 店舗マスタ(単価) ----------
+# 単価を設定する項目(画面・帳票の並び順)
+PRICE_ITEMS = [
+    ("adults", "大人"), ("children", "子供"), ("infants", "幼児"),
+    ("adult_coupon", "大人クーポン(食事付)"), ("child_coupon", "子供クーポン(食事付)"),
+    ("free_adult", "フリー大人(生打ち)"), ("free_child", "フリー子供(生打ち)"),
+    ("outside", "外来大人"), ("outside_child", "外来子供"),
+]
+PRICE_KEYS = [k for k, _ in PRICE_ITEMS]
+
+
+def prices_on(db: Session, meal: str, d: date) -> dict[str, int]:
+    """その日に有効な単価(未設定は0円)"""
+    rows = db.scalars(select(UnitPrice).where(UnitPrice.meal == meal, UnitPrice.effective_from <= d)
+                      .order_by(UnitPrice.effective_from, UnitPrice.id))
+    prices = dict.fromkeys(PRICE_KEYS, 0)
+    for p in rows:  # 適用開始日の古い順に上書き → 最新が残る
+        if p.item in prices:
+            prices[p.item] = p.price
+    return prices
+
+
+@app.get("/api/prices")
+def get_prices(_: User = Depends(admin_user), db: Session = Depends(get_db)):
+    today = now_jst().date()
+    names = user_names(db)
+    labels = dict(PRICE_ITEMS)
+    out = {"items": [{"key": k, "label": l} for k, l in PRICE_ITEMS], "today": today.isoformat(), "meals": {}}
+    for meal in MEALS:
+        hist = db.scalars(select(UnitPrice).where(UnitPrice.meal == meal)
+                          .order_by(UnitPrice.effective_from.desc(), UnitPrice.id.desc()))
+        upcoming = {}
+        for p in db.scalars(select(UnitPrice).where(UnitPrice.meal == meal, UnitPrice.effective_from > today)
+                            .order_by(UnitPrice.effective_from)):
+            upcoming.setdefault(p.item, {"price": p.price, "from": p.effective_from.isoformat()})
+        out["meals"][meal] = {
+            "current": prices_on(db, meal, today),
+            "upcoming": upcoming,  # 今日より後に適用される予定の単価(項目ごとに直近のもの)
+            "history": [{"id": p.id, "item": p.item, "label": labels.get(p.item, p.item), "price": p.price,
+                         "from": p.effective_from.isoformat(), "at": iso(p.created_at),
+                         "by": names.get(p.created_by, "")} for p in hist],
+        }
+    return out
+
+
+class PricesIn(BaseModel):
+    meal: str
+    effective_from: date
+    prices: dict[str, int]
+
+    @field_validator("prices")
+    @classmethod
+    def valid(cls, v):
+        for k, p in v.items():
+            if k not in PRICE_KEYS:
+                raise ValueError(f"不明な項目です: {k}")
+            if not 0 <= p <= INT_MAX:
+                raise ValueError("単価は0円以上で入力してください")
+        return v
+
+
+@app.put("/api/prices")
+def put_prices(body: PricesIn, user: User = Depends(admin_user), db: Session = Depends(get_db)):
+    """適用開始日つきで単価を登録。その日に有効な単価から変わる項目だけ記録する(同じ適用開始日なら上書き)"""
+    check_meal(body.meal)
+    before = prices_on(db, body.meal, body.effective_from)
+    changed = 0
+    for item, price in body.prices.items():
+        same_day = db.scalar(select(UnitPrice).where(UnitPrice.meal == body.meal, UnitPrice.item == item,
+                                                     UnitPrice.effective_from == body.effective_from))
+        if same_day:
+            if same_day.price != price:
+                same_day.price, same_day.created_by, same_day.created_at = price, user.id, now_jst()
+                changed += 1
+        elif before[item] != price:
+            db.add(UnitPrice(meal=body.meal, item=item, price=price, effective_from=body.effective_from,
+                             created_by=user.id))
+            changed += 1
+    db.commit()
+    return {"changed": changed}
+
+
+# ---------- 帳票(1日分の詳細) ----------
+def report_data(db: Session, meal: str, d: date) -> dict:
+    prices = prices_on(db, meal, d)
+    rows = list(db.scalars(select(Reservation).where(
+        Reservation.meal == meal, Reservation.date == d, Reservation.deleted_at.is_(None))))  # 削除済みは除く
+    room_key = lambda room: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", room)]
+    rows.sort(key=lambda r: (r.time_slot or "99:99", room_key(r.room)))
+    counts = {k: sum(getattr(r, k) for r in rows) for k in PRICE_KEYS}
+    items = [{"key": k, "label": l, "count": counts[k], "price": prices[k], "amount": counts[k] * prices[k]}
+             for k, l in PRICE_ITEMS]
+    details = [{
+        "id": r.id, "time_slot": r.time_slot, "room": r.room, "guest_name": r.guest_name, "vip": r.vip,
+        "nights": r.nights, "night_no": r.night_no, "entered": r.entered_at is not None,
+        **{k: getattr(r, k) for k in PRICE_KEYS},
+        "amount": sum(getattr(r, k) * prices[k] for k in PRICE_KEYS),
+        "allergy": r.allergy, "note": r.note,
+    } for r in rows]
+    return {
+        "meal": meal, "date": d.isoformat(), "weekday": WEEKDAYS[d.weekday()],
+        "items": items, "rows": details,
+        "total": {"amount": sum(i["amount"] for i in items), "groups": len(rows),
+                  **counts},
+    }
+
+
+@app.get("/api/{meal}/report")
+def meal_report(meal: str, d: date, _: User = Depends(current_user), db: Session = Depends(get_db)):
+    return report_data(db, check_meal(meal), d)
+
+
+@app.get("/api/{meal}/report.xlsx")
+def meal_report_xlsx(meal: str, d: date, _: User = Depends(current_user), db: Session = Depends(get_db)):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    data = report_data(db, check_meal(meal), d)
+    title = f"{MEAL_LABELS[meal]}帳票"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = title
+    thin = Side(style="thin", color="BBBBBB")
+    border = Border(top=thin, bottom=thin, left=thin, right=thin)
+    head_fill = PatternFill("solid", fgColor="E6F1FB")
+    total_fill = PatternFill("solid", fgColor="F2F2F2")
+    yen = '#,##0'
+
+    def add_row(values, fill=None, bold=False):
+        """1行追加し、値を入れた列だけに罫線・塗り・太字を付ける"""
+        ws.append(values)
+        for c in ws[ws.max_row][:len(values)]:
+            c.border = border
+            if fill:
+                c.fill = fill
+            if bold:
+                c.font = Font(bold=True)
+
+    ws.append([f"{title}　{d:%Y/%m/%d}({data['weekday']})"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([f"出力日時 {now_jst():%Y/%m/%d %H:%M}(削除済みの予約は除く。単価はこの日に有効なもの)"])
+    ws["A2"].font = Font(size=9, color="777777")
+    ws.append([])
+    ws.append(["■ 項目別集計"])
+    ws.cell(row=ws.max_row, column=1).font = Font(bold=True)
+    add_row(["項目", "人数", "単価", "金額"], head_fill, True)
+    for it in data["items"]:
+        add_row([it["label"], it["count"], it["price"], it["amount"]])
+        ws.cell(row=ws.max_row, column=3).number_format = yen
+        ws.cell(row=ws.max_row, column=4).number_format = yen
+    add_row(["合計", "", "", data["total"]["amount"]], total_fill, True)  # 人数は大人と内訳で重なるため合計しない
+    ws.cell(row=ws.max_row, column=4).number_format = yen
+
+    ws.append([])
+    ws.append(["■ 予約明細"])
+    ws.cell(row=ws.max_row, column=1).font = Font(bold=True)
+    labels = [l for _, l in PRICE_ITEMS]
+    add_row(["時間", "部屋", "代表者名", "VIP", *labels, "金額", "アレルギー", "備考"], head_fill, True)
+    head_row = ws.max_row
+    for c in ws[head_row]:
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for r in data["rows"]:
+        add_row([r["time_slot"] or "未定", r["room"], r["guest_name"], "★" if r["vip"] else "",
+                 *[r[k] for k in PRICE_KEYS], r["amount"], r["allergy"], r["note"]])
+        ws.cell(row=ws.max_row, column=4 + len(PRICE_KEYS) + 1).number_format = yen
+    add_row(["合計", "", f"{data['total']['groups']}組", "", *[data["total"][k] for k in PRICE_KEYS],
+             data["total"]["amount"], "", ""], total_fill, True)
+    ws.cell(row=ws.max_row, column=4 + len(PRICE_KEYS) + 1).number_format = yen
+
+    widths = {"A": 22, "B": 9, "C": 18, "D": 5}
+    for col, w in widths.items():
+        ws.column_dimensions[col].width = w
+    for i in range(5, 5 + len(PRICE_KEYS)):
+        ws.column_dimensions[ws.cell(row=head_row, column=i).column_letter].width = 10
+    amount_col = ws.cell(row=head_row, column=5 + len(PRICE_KEYS)).column_letter
+    ws.column_dimensions[amount_col].width = 12
+    ws.row_dimensions[head_row].height = 32
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    buf = BytesIO()
+    wb.save(buf)
+    fname = f"{title}_{d:%Y%m%d}.xlsx"
+    return Response(buf.getvalue(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
+
+
 # ---------- 操作ログ ----------
 FIELD_LABELS = {
     "date": "日付", "nights": "泊数", "night_no": "何泊目", "time_slot": "時間", "room": "部屋",
@@ -854,7 +1044,9 @@ def operation_logs(start: date, end: date, _: User = Depends(current_user), db: 
 
 
 # ---------- ページ ----------
-PAGES = {"dinner", "breakfast", "dinner-summary", "breakfast-summary", "chat", "logs", "admin"}
+PAGES = {"dinner", "breakfast", "dinner-summary", "breakfast-summary", "dinner-report", "breakfast-report",
+         "chat", "logs", "admin", "store-master"}
+ADMIN_PAGES = {"admin", "store-master"}  # 管理者・developer だけが開けるページ
 
 
 def file_response(request: Request, path: Path, **kwargs) -> Response:
@@ -896,6 +1088,6 @@ def page(page: str, request: Request, db: Session = Depends(get_db)):
     user = session_user(request, db)
     if not user:
         return RedirectResponse("/login")
-    if page == "admin" and user.role not in ADMIN_ROLES:
+    if page in ADMIN_PAGES and user.role not in ADMIN_ROLES:
         return RedirectResponse("/dinner")
     return file_response(request, BASE / "pages" / f"{page.replace('-', '_')}.html")

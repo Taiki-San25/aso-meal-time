@@ -87,6 +87,18 @@ class ChatRead(Base):
     last_read_id: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class UnitPrice(Base):
+    """店舗マスタの単価(区分・項目ごと、適用開始日つき。その日に有効なのは適用開始日が最も新しいもの)"""
+    __tablename__ = "unit_prices"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    meal: Mapped[str] = mapped_column(String(16), index=True)
+    item: Mapped[str] = mapped_column(String(32))  # PRICE_ITEMS のキー
+    price: Mapped[int] = mapped_column(Integer, default=0)  # 1人あたり(円)
+    effective_from: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_jst)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
 class TimeSlot(Base):
     __tablename__ = "time_slots"
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -96,8 +96,13 @@ window.AMT = (function () {
         { label: '朝食集計', icon: 'ti-chart-bar', href: '/breakfast-summary' }] },
       { key: 'chat', label: 'チャット', title: 'チャット', icon: 'ti-messages', items: [
         { label: 'チャット', icon: 'ti-messages', href: '/chat', unread: true }] },
+      { key: 'report', label: '帳票', title: '帳票', icon: 'ti-files', items: [
+        { label: '夕食帳票', icon: 'ti-moon', href: '/dinner-report' },
+        { label: '朝食帳票', icon: 'ti-sun', href: '/breakfast-report' }] },
       { key: 'record', label: '記録', title: '記録', icon: 'ti-list-details', items: [
         { label: '操作ログ', icon: 'ti-list-details', href: '/logs' }] },
+      { key: 'master', label: '店舗\nマスタ', title: '店舗マスタ', icon: 'ti-building-store', admin: true, lower: true, items: [
+        { label: '単価設定', icon: 'ti-currency-yen', href: '/store-master' }] },
       { key: 'admin', label: '管理者', title: '管理者メニュー', icon: 'ti-shield-lock', admin: true, lower: true, items: [
         { label: '管理者ページ', icon: 'ti-settings', href: '/admin' }] },
     ]

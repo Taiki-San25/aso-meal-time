@@ -62,7 +62,7 @@ body{margin:0;font-family:sans-serif;color:var(--text);background:#fff}
 .railCat{position:relative;width:54px;min-height:52px;padding:6px 2px 5px;border:0;border-radius:8px;background:transparent;color:#444;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:inherit}
 .railCat i{font-size:20px}
-.railCat small{font-size:12px;line-height:1.15;text-align:center;letter-spacing:-.04em}
+.railCat small{font-size:12px;line-height:1.15;text-align:center;letter-spacing:-.04em;white-space:pre-line}  /* 名前の改行で2行に(店舗/マスタ) */
 .railCat:hover,.railCat.open{background:#e6f1fb;color:#185fa5}
 .railCat:focus-visible{outline:2px solid #185fa5;outline-offset:-2px}
 .railCat.cur{color:#185fa5;font-weight:600}
